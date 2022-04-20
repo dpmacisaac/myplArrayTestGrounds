@@ -25,7 +25,18 @@ java_library(
 
 # TODO: Add your test targets here. See prior homework build files for
 #       examples of creating test targets.
-
+java_test(
+    name = "parser-test",
+    srcs = ["tests/ParserTest.java"],
+    test_class = "ParserTest",
+    deps = ["lib/junit-4.13.2.jar", "lib/hamcrest-core-1.3.jar","//:mypl-lib"],
+)
+java_test(
+    name = "ast-parser-test",
+    srcs = ["tests/ASTParserTest.java"],
+    test_class = "ASTParserTest",
+    deps = ["lib/junit-4.13.2.jar", "lib/hamcrest-core-1.3.jar","//:mypl-lib"],
+)
 
 
 

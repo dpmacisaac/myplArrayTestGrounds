@@ -1,0 +1,4 @@
+Compile:    bazel build //:mypl
+Run file:   bazel-bin/mypl (file name)
+    - ex: bazel-bin/mypl examples/linked-list-merge-sort.mypl
+Run tests:
