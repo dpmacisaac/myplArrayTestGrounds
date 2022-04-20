@@ -94,7 +94,7 @@ public class StaticChecker implements Visitor {
     else if (rvalue instanceof NewRValue)
       return ((NewRValue)rvalue).typeName;
     else if (rvalue instanceof IDRValue) {
-        return ((IDRValue)rvalue).path.get(0).keySet().toArray()[0];
+        return ((Token) ((IDRValue) rvalue).path.get(0).keySet().toArray()[0]);
     }
     else if (rvalue instanceof CallExpr)
       return ((CallExpr)rvalue).funName;
