@@ -8,6 +8,7 @@
  */
 
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -311,7 +312,7 @@ public class ASTParser {
   } //FIN
 
   private void assign_stmt(AssignStmt assignStmt) throws MyPLException{
-    List<HashMap<Object,TokenType>> lvalue = new ArrayList<>();
+    List<PathHolder> lvalue = new ArrayList<>();
     lvalue(lvalue);
     assignStmt.lvalue = lvalue;
 
@@ -322,19 +323,17 @@ public class ASTParser {
     assignStmt.expr = expr;
   } //FIM
 
-  private void lvalue(List<HashMap<Object,TokenType>> lvalue) throws MyPLException{
-    HashMap<Object, TokenType> currentMap = null;
+  private void lvalue(List<PathHolder> lvalue) throws MyPLException{
+    PathHolder currentMap = null;
     Token prev = null;
     if(match(TokenType.ID) && pastToken == null){
-      currentMap = new HashMap<>();
-      currentMap.put(currToken, currToken.type());
+      currentMap = new PathHolder(currToken, currToken.type());
       lvalue.add(currentMap);
       prev = currToken;
       advance();
     }
     else if(pastToken.type() == TokenType.ID){
-      currentMap = new HashMap<>();
-      currentMap.put(pastToken, pastToken.type());
+      currentMap = new PathHolder(pastToken, pastToken.type());
       lvalue.add(currentMap);
       pastToken = null;
       prev = pastToken;
@@ -349,15 +348,13 @@ public class ASTParser {
         advance();
         Expr expr = new Expr();
         expr(expr);
-        currentMap = new HashMap<>();
-        currentMap.put(expr, TokenType.INT_VAL);
+        currentMap = new PathHolder(expr, TokenType.INT_VAL);
         lvalue.add(currentMap);
         eat(TokenType.RBRACK, "expected RBrack in assign stmt for arr");
       }
       else {
         advance();
-        currentMap = new HashMap<>();
-        currentMap.put(currToken, currToken.type());
+        currentMap = new PathHolder(currToken, currToken.type());
         lvalue.add(currentMap);
         prev = currToken;
         eat(TokenType.ID, "expecting ID in lvalue");
@@ -620,18 +617,16 @@ public class ASTParser {
   }
 
   private void idrval(IDRValue idrValue) throws MyPLException{
-    HashMap<Object, TokenType> currentMap = null;
+    PathHolder currentMap = null;
     Token prev = null;
     if(match(TokenType.ID) && pastToken == null){
-      currentMap = new HashMap<>();
-      currentMap.put(currToken, currToken.type());
+      currentMap = new PathHolder(currToken, currToken.type());
       idrValue.path.add(currentMap);
       prev = currToken;
       advance();
     }
     else if(pastToken.type() == TokenType.ID){
-      currentMap = new HashMap<>();
-      currentMap.put(pastToken, pastToken.type());
+      currentMap = new PathHolder(pastToken, pastToken.type());
       idrValue.path.add(currentMap);
       pastToken = null;
       prev = pastToken;
@@ -646,15 +641,13 @@ public class ASTParser {
         advance();
         Expr expr = new Expr();
         expr(expr);
-        currentMap = new HashMap<>();
-        currentMap.put(expr, TokenType.INT_VAL);
+        currentMap = new PathHolder(expr, TokenType.INT_VAL);
         idrValue.path.add(currentMap);
         eat(TokenType.RBRACK, "expected RBrack in assign stmt for arr");
       }
       else {
         advance();
-        currentMap = new HashMap<>();
-        currentMap.put(currToken, currToken.type());
+        currentMap = new PathHolder(currToken, currToken.type());
         idrValue.path.add(currentMap);
         prev = currToken;
         eat(TokenType.ID, "expecting ID in lvalue");

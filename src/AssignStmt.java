@@ -5,6 +5,7 @@
  * Desc: An AST node representing variable assignment statements
  */
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -12,7 +13,7 @@ import java.util.Map;
 
 public class AssignStmt implements Stmt {
 
-  public List<HashMap<Object,TokenType>> lvalue = new ArrayList<>();
+  public List<PathHolder> lvalue = new ArrayList<>();
   public Expr expr = null;
   
   @Override

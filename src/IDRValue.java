@@ -15,7 +15,7 @@ import java.util.Map;
 
 public class IDRValue implements RValue {
 
-  public List<HashMap<Object, TokenType>> path = new ArrayList<>(); //CHANGED
+  public List<PathHolder> path = new ArrayList<>(); //CHANGED
 
   @Override
   public void accept(Visitor visitor) throws MyPLException {
