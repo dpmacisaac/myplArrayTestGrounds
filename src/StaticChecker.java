@@ -7,8 +7,8 @@
  * Bazel commands: bazel build //:mypl  || bazel test --test_output=errors //... || bazel test --test_output=errors //:lexer-test
  * bazel-bin/mypl examples/
  */
-/*
 
+/*
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -25,8 +25,12 @@ public class StaticChecker implements Visitor {
   private SymbolTable symbolTable = new SymbolTable();
   // the current expression type
   private String currType = null;
+  private String arrType = "";
   // the program's user-defined (record) types and function signatures
   private TypeInfo typeInfo = null;
+
+  private ArrInfo arrInfo = null;
+  private String currArr = null;
 
   //--------------------------------------------------------------------
   // helper functions:
@@ -47,7 +51,17 @@ public class StaticChecker implements Visitor {
     types.addAll(Arrays.asList("int", "double", "bool", "char", "string",
                                "void"));
     for (String type : typeInfo.types())
-      if (symbolTable.get(type).equals("type"))
+      if (symbolTable.get(type).type.equals("type") || symbolTable.get(type).isArray)
+        types.add(type);
+    return types;
+  }
+
+  private List<String> getValidTypesNoArr(){
+    List<String> types = new ArrayList<>();
+    types.addAll(Arrays.asList("int", "double", "bool", "char", "string",
+            "void"));
+    for (String type : typeInfo.types())
+      if (symbolTable.get(type).type.equals("type"))
         types.add(type);
     return types;
   }
@@ -55,12 +69,12 @@ public class StaticChecker implements Visitor {
   // return the build in function names
   private List<String> getBuiltinFunctions() {
     return Arrays.asList("print", "read", "length", "get", "stoi",
-                         "stod", "itos", "itod", "dtos", "dtoi");
+                         "stod", "itos", "itod", "dtos", "dtoi", "size", "add", "remove");
   }
   
   // check if given token is a valid function signature return type
   private void checkReturnType(Token typeToken) throws MyPLException {
-    if (!getValidTypes().contains(typeToken.lexeme())) {
+    if (!getValidTypesNoArr().contains(typeToken.lexeme())) {
       String msg = "'" + typeToken.lexeme() + "' is an invalid return type";
       error(msg, typeToken);
     }
@@ -94,7 +108,7 @@ public class StaticChecker implements Visitor {
     else if (rvalue instanceof NewRValue)
       return ((NewRValue)rvalue).typeName;
     else if (rvalue instanceof IDRValue) {
-        return ((Token) ((IDRValue) rvalue).path.get(0).keySet().toArray()[0]);
+        return (Token) ((IDRValue)rvalue).path.get(0).first;
     }
     else if (rvalue instanceof CallExpr)
       return ((CallExpr)rvalue).funName;
@@ -119,15 +133,16 @@ public class StaticChecker implements Visitor {
   public void visit(Program node) throws MyPLException {
     // push the "global" environment
     symbolTable.pushEnvironment();
-
+    arrInfo = new ArrInfo();
     // (1) add each user-defined type name to the symbol table and to
     // the list of rec types, check for duplicate names
     for (TypeDecl tdecl : node.tdecls) {
       String t = tdecl.typeName.lexeme();
-      if (symbolTable.nameExists(t))
+      if (symbolTable.nameExists(t)) {
         error("type '" + t + "' already defined", tdecl.typeName);
+      }
       // add as a record type to the symbol table
-      symbolTable.add(t, "type");
+      symbolTable.add(t,  new TypeHolder("type"));
       //system.out.println("added " + t + " to symbol table");
       // add initial type info (rest added by TypeDecl visit function)
       typeInfo.add(t);
@@ -147,7 +162,8 @@ public class StaticChecker implements Visitor {
       // make sure the return type is a valid type
       checkReturnType(fdecl.returnType);
       // add to the symbol table as a function
-      symbolTable.add(funName, "fun");
+
+      symbolTable.add(funName, new TypeHolder("fun"));
       //System.out.println("added " + funName + " to symbol table");
       // add to typeInfo
       typeInfo.add(funName);
@@ -217,62 +233,185 @@ public class StaticChecker implements Visitor {
   //--------------------------------------------------------------------
   
   public void visit(VarDeclStmt node) throws MyPLException {
-    node.expr.accept(this);
-    //System.out.println(node.varName.lexeme() + " " + node.varName.line() + " " + currType);
-
-    //check that expr was not a type or a function
-    if(currType.equals("type") || currType.equals("fun")){
-      error("invalid variable declaration type", getFirstToken(node.expr));
-    }
-
     //check that variable name hasn't been used in the current environment before
-    if(symbolTable.nameExistsInCurrEnv(node.varName.lexeme())){
+    if (symbolTable.nameExistsInCurrEnv(node.varName.lexeme())) {
       error("duplicate variable name", node.varName);
     }
 
-    //Explicit Declaration
-    if(node.typeName != null){
-      if(!node.typeName.lexeme().equals(currType) && !currType.equals("void")) {
-        error("explicit var type does not match assignment type", node.typeName);
+    if(!node.isArray) {
+      node.exprs.get(0).accept(this);
+      //System.out.println(node.varName.lexeme() + " " + node.varName.line() + " " + currType);
+
+      //check that expr was not a type or a function
+      if (currType.equals("type") || currType.equals("fun")) {
+        error("invalid variable declaration type", getFirstToken(node.exprs.get(0)));
       }
-      currType = node.typeName.lexeme();
-      symbolTable.add(node.varName.lexeme(), currType);
-    } //Implicit Declaration
+
+      //Explicit Declaration
+      if (node.typeName != null) {
+        if (!node.typeName.lexeme().equals(currType) && !currType.equals("void")) {
+          error("explicit var type does not match assignment type", node.typeName);
+        }
+        currType = node.typeName.lexeme();
+        symbolTable.add(node.varName.lexeme(), currType);
+      } //Implicit Declaration
+      else {
+        if (currType.equals("void")) { //implicit can't be void
+          error("implicit var declaration cannot be assigned nil", node.varName);
+        }
+        symbolTable.add(node.varName.lexeme(), currType);
+      }
+    }
     else{
-      if(currType.equals("void")){ //implicit can't be void
-        error("implicit var declaration cannot be assigned nil", node.varName);
+      symbolTable.add(node.varName.lexeme(), "arr");
+      //Implicit Declaration
+      if(node.exprs.size() == 0){
+        if(node.typeName == null){
+          error("implicit var declaration cannot be assigned nil", node.varName);
+        }
+        arrInfo.add(node.varName.lexeme(), node.typeName.lexeme());
       }
-      symbolTable.add(node.varName.lexeme(), currType);
+      else{
+        String impliedType = null;
+        for (Expr expr: node.exprs) {
+          expr.accept(this);
+
+          //check name
+          if (currType.equals("type") || currType.equals("fun")) {
+            error("invalid variable declaration type in array", getFirstToken(expr));
+          }
+
+          //Explict Declaration
+          if (node.typeName != null) {
+            if (!node.typeName.lexeme().equals(currType) && !currType.equals("void")) {
+              error("explicit var type does not match assignment type in array", node.typeName);
+            }
+            currType = node.typeName.lexeme();
+            arrInfo.add(node.varName.lexeme(), node.typeName.lexeme());
+          }
+          else {
+            if (impliedType == null) {
+              impliedType = currType;
+              arrInfo.add(node.varName.lexeme(), impliedType);
+            }
+            else {
+              if (!impliedType.equals(currType)) {
+                error("variables in array not homogenous", node.typeName);
+              }
+            }
+          }
+        }
+      }
+
     }
   }
 
   public void visit(AssignStmt node) throws MyPLException {
-    //Not a Path
-    if(node.lvalue.size() == 1){
-      if(symbolTable.nameExists(node.lvalue.get(0).lexeme()) && !symbolTable.get(node.lvalue.get(0).lexeme()).equals("fun")) {
-        currType = symbolTable.get(node.lvalue.get(0).lexeme());
+    Token currentToken = (Token) node.lvalue.get(0).first;
+    int pathSize = node.lvalue.size();
+    //if no path - simple id
+    if(pathSize <= 1){
+      if(symbolTable.nameExists(currentToken.lexeme())) {
+        currType = symbolTable.get(currentToken.lexeme());
       }
       else{
-        error("idrvalue error", node.lvalue.get(0));
+        error("idrvalue error", currentToken);
       }
     }
-    else{ //A Path
-      String pathVarName = node.lvalue.get(0).lexeme();
-      if(!symbolTable.nameExists(pathVarName)){ //checks that the var name exist in symbolTable
-        error("path not in symbolTable", node.lvalue.get(0));
+    //path
+    else{
+      String pathName = currentToken.lexeme();
+      String udtType = "";
+      String arrType ="";
+      boolean arrayCheck = false;
+      Expr currentExpr = null;
+
+      //start of path
+      if(!symbolTable.nameExists(pathName)){
+        error("path not in symbolTable in idrvalue", currentToken);
       }
-      String udtType = symbolTable.get(pathVarName); //gets the type of the first path variable name
-      for(int i = 1; i < node.lvalue.size()-1; i++){
-        pathVarName = node.lvalue.get(i).lexeme();
-        if(!typeInfo.components(udtType).contains(pathVarName)){
-          error("path not in typeInfo", node.lvalue.get(i));
+      arrayCheck = node.lvalue.get(0).second.equals(TokenType.ARR);
+
+      if(arrayCheck){ //if its an array then get the type of the array
+        arrType = arrInfo.getType(pathName);
+      }
+      else{ //if its a type then get the udt name
+        udtType = symbolTable.get(pathName);
+      }
+
+      //loop
+      for(int i = 1; i < pathSize-1; i++){
+        if(arrayCheck){
+          currentExpr = (Expr) node.lvalue.get(i).first;
+          currentExpr.accept(this);
+          if(!currType.equals("int")){
+            error("incorrect type in array in idrvalue", currentToken);
+          }
+          currType = arrType;
         }
-        udtType = typeInfo.get(udtType, pathVarName);
+        else{
+          currentToken = (Token) node.lvalue.get(i).first;
+          pathName = currentToken.lexeme();
+          if(!typeInfo.components(udtType).contains(pathName)){
+            error("path not in typeInfo", currentToken);
+          }
+          currType = typeInfo.get(udtType, pathName);
+        }
+
+        arrayCheck = node.lvalue.get(i).second.equals(TokenType.ARR);
+        if(!arrayCheck){
+          udtType = currType;
+        }
+        else{
+          currentToken = (Token) node.lvalue.get(i).first;
+          arrType = arrInfo.getType(currentToken.lexeme());
+        }
       }
-      if(!typeInfo.components(udtType).contains(node.lvalue.get(node.lvalue.size()-1).lexeme())){
-        error("path not in typeInfo", node.lvalue.get(node.lvalue.size()-1));
+
+
+      if(arrayCheck){
+        currentExpr = (Expr) node.lvalue.get(pathSize-1).first;
+        currentExpr.accept(this);
+        if(!currType.equals("int")){
+          error("incorrect type in array in idrvalue", currentToken);
+        }
+        currType = arrType;
       }
-      currType = typeInfo.get(udtType,node.lvalue.get(node.lvalue.size()-1).lexeme());
+      else{
+        currentToken = (Token) node.lvalue.get(pathSize-1).first;
+        pathName = currentToken.lexeme();
+        if(!typeInfo.components(udtType).contains(pathName)){
+          error("path not in typeInfo", currentToken);
+        }
+        currType = typeInfo.get(udtType,pathName);
+      }
+
+
+
+      /*
+
+      String udtType = symbolTable.get(pathName);
+      for(int i = 1; i < node.path.size()-1; i++){
+
+
+        temp = (Token) node.path.get(i).first;
+        pathName = temp.lexeme();
+
+        if(arrayCheck){
+
+        }
+        if(!typeInfo.components(udtType).contains(pathName)){
+          error("path not in typeInfo", node.path.get(i));
+        }
+        udtType = typeInfo.get(udtType, pathName);
+      }
+      if(!typeInfo.components(udtType).contains(node.path.get(node.path.size()-1).lexeme())){
+        error("path not in typeInfo", node.path.get(node.path.size()-1));
+      }
+      currType = typeInfo.get(udtType,node.path.get(node.path.size()-1).lexeme());
+    }
+    */
+/*
     }
     String lhs = currType;
     String rhs = "";
@@ -368,7 +507,7 @@ public class StaticChecker implements Visitor {
       error("variable id being deleted is not a UDT", node.varName);
     }
 
-    if(!symbolTable.get(node.varName.lexeme()).equals("type")){
+    if(typeInfo.components(symbolTable.get(node.varName.lexeme())) == null){
       error("variable id being deleted is not a UDT", node.varName);
     }
 
@@ -484,6 +623,7 @@ public class StaticChecker implements Visitor {
 
       return true;
     }
+
     else if (funName.equals("dtoi")) {
       if (node.args.size() != 1) {
         error("dtoi expects one argument", node.funName);
@@ -497,6 +637,54 @@ public class StaticChecker implements Visitor {
 
       return true;
     }
+    else if (funName.equals("size")) {
+      if (node.args.size() != 1) {
+        error("size expects one argument", node.funName);
+      }
+      Expr e = node.args.get(0);
+      e.accept(this);
+      if (!currType.equals("arr")) {
+        error("expecting double in size", getFirstToken(e));
+      }
+      currType = "int";
+      return true;
+    }
+
+    else if (funName.equals("add")) {
+      if (node.args.size() != 2) {
+        error("add expects two argument", node.funName);
+      }
+      Expr e = node.args.get(0);
+      e.accept(this);
+      if (!currType.equals("arr")) {
+        error("expecting arr in size", getFirstToken(e));
+      }
+      Expr e2 = node.args.get(1);
+      e2.accept(this);
+      if (!currType.equals(arrInfo.getType(currArr))) {
+        error("expecting value of same type of array", getFirstToken(e));
+      }
+      currType = "nil";
+      return true;
+    }
+    else if (funName.equals("remove")) {
+      if (node.args.size() != 2) {
+        error("add expects two argument", node.funName);
+      }
+      Expr e = node.args.get(0);
+      e.accept(this);
+      if (!currType.equals("arr")) {
+        error("expecting add in size", getFirstToken(e));
+      }
+      Expr e2 = node.args.get(1);
+      e2.accept(this);
+      if (!currType.equals("int")) {
+        error("expecting int value in remove", getFirstToken(e));
+      }
+      currType = "nil";
+      return true;
+    }
+
     return false;
   } //DONE
 
@@ -564,22 +752,100 @@ public class StaticChecker implements Visitor {
   
       
   public void visit(IDRValue node) throws MyPLException {
-    if(node.path.size() == 1){
-      if(symbolTable.nameExists(node.path.get(0).lexeme())) {
-        currType = symbolTable.get(node.path.get(0).lexeme());
+    Token currentToken = (Token) node.path.get(0).first;
+    int pathSize = node.path.size();
+
+    //if no path - simple id
+    if(pathSize == 1){
+      if(symbolTable.nameExists(currentToken.lexeme())) {
+        currType = symbolTable.get(currentToken.lexeme());
       }
       else{
-        error("idrvalue error", node.path.get(0));
+        error("idrvalue error", currentToken);
       }
     }
+    //path
     else{
-      String pathName = node.path.get(0).lexeme();
+      String pathName = currentToken.lexeme();
+      String udtType = "";
+      String arrType ="";
+      boolean arrayCheck = false;
+      Expr currentExpr = null;
+
+      //start of path
       if(!symbolTable.nameExists(pathName)){
-        error("path not in symbolTable", node.path.get(0));
+        error("path not in symbolTable in idrvalue", currentToken);
       }
+      arrayCheck = node.path.get(0).second.equals(TokenType.ARR);
+
+      if(arrayCheck){ //if its an array then get the type of the array
+        arrType = arrInfo.getType(pathName);
+      }
+      else{ //if its a type then get the udt name
+        udtType = symbolTable.get(pathName);
+      }
+
+      //loop
+      for(int i = 1; i < pathSize-1; i++){
+        if(arrayCheck){
+          currentExpr = (Expr) node.path.get(i).first;
+          currentExpr.accept(this);
+          if(!currType.equals("int")){
+            error("incorrect type in array in idrvalue", currentToken);
+          }
+          currType = arrType;
+        }
+        else{
+          currentToken = (Token) node.path.get(i).first;
+          pathName = currentToken.lexeme();
+          if(!typeInfo.components(udtType).contains(pathName)){
+            error("path not in typeInfo", currentToken);
+          }
+          currType = typeInfo.get(udtType, pathName);
+        }
+
+        arrayCheck = node.path.get(i).second.equals(TokenType.ARR);
+        if(!arrayCheck){
+          udtType = currType;
+        }
+        else{
+          currentToken = (Token) node.path.get(i).first;
+          arrType = arrInfo.getType(currentToken.lexeme());
+        }
+      }
+
+
+      if(arrayCheck){
+        currentExpr = (Expr) node.path.get(pathSize-1).first;
+        currentExpr.accept(this);
+        if(!currType.equals("int")){
+          error("incorrect type in array in idrvalue", currentToken);
+        }
+        currType = arrType;
+      }
+      else{
+        currentToken = (Token) node.path.get(pathSize-1).first;
+        pathName = currentToken.lexeme();
+        if(!typeInfo.components(udtType).contains(pathName)){
+          error("path not in typeInfo", currentToken);
+        }
+        currType = typeInfo.get(udtType,pathName);
+      }
+
+
+
+      /*
+
       String udtType = symbolTable.get(pathName);
       for(int i = 1; i < node.path.size()-1; i++){
-        pathName = node.path.get(i).lexeme();
+
+
+        temp = (Token) node.path.get(i).first;
+        pathName = temp.lexeme();
+
+        if(arrayCheck){
+
+        }
         if(!typeInfo.components(udtType).contains(pathName)){
           error("path not in typeInfo", node.path.get(i));
         }
@@ -590,7 +856,9 @@ public class StaticChecker implements Visitor {
       }
       currType = typeInfo.get(udtType,node.path.get(node.path.size()-1).lexeme());
     }
-    
+    */
+    /*
+    }
   }
   
       

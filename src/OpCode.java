@@ -53,7 +53,15 @@ public enum OpCode {
   FREE,         // pop x, deallocate object with oid x
   SETFLD,       // set field f: pop x and y, set obj(y).f = x
   GETFLD,       // get field f: pop x, push obj(x).f value
-  
+
+  // array heap
+  CREATE,       //
+  GETVAL,
+  SETVAL,
+  RMVAL,
+  ADDVAL,
+  SIZE,
+
   // special
   DUP,          // pop x, push x, push x
   SWAP,         // pop x, pop y, push x, push y

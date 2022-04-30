@@ -165,6 +165,10 @@ public class Parser {
     else{
       error("expecting dtype");
     }
+    if(match(TokenType.LBRACK)){
+      advance();
+      eat(TokenType.RBRACK, "rbrack expected after lbrack");
+    }
   }
   private void stmts() throws MyPLException{
     while(match(TokenType.VAR) || match(TokenType.ARR) || match(TokenType.ID) || match(TokenType.IF)
@@ -244,6 +248,7 @@ public class Parser {
 
 
   private void lvalue() throws MyPLException{ //done
+    boolean switched = false;
     if(match(TokenType.ID) && pastToken == null){
       advance();
     }
@@ -253,14 +258,20 @@ public class Parser {
     else{
       error("expecting ID in lvalue");
     }
+
     //eat(TokenType.ID, "expecting ID in lvalue");
     while(match(TokenType.DOT) || match(TokenType.LBRACK)){
       if(match(TokenType.LBRACK)){
+        if(switched){
+          error("lvalue incorrect, multiple accessors");
+        }
         advance();
         expr();
         eat(TokenType.RBRACK, "expecting RBRACK in arr lvalue");
+        switched = true;
       }
       else {
+        switched = false;
         advance();
         eat(TokenType.ID, "expecting ID in lvalue");
       }
@@ -432,6 +443,7 @@ public class Parser {
   }
 
   private void idrval() throws MyPLException{
+    boolean switched = false;
     if(match(TokenType.ID) && pastToken == null){
       advance();
     }
@@ -443,13 +455,18 @@ public class Parser {
     }
     while(match(TokenType.DOT) || match(TokenType.LBRACK)){
       if(match(TokenType.LBRACK)){
+        if(switched){
+          error("double accessor in idrval");
+        }
         advance();
         expr();
         eat(TokenType.RBRACK, "expecting RBRACK in arr lvalue");
+        switched = true;
       }
       else {
         advance();
         eat(TokenType.ID, "expecting ID in lvalue");
+        switched = false;
       }
     }
   }

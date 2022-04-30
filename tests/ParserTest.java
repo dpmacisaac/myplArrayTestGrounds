@@ -252,7 +252,7 @@ public class ParserTest {
     String s = buildString
             ("fun void main() {",
                     "arr x = {1}",
-                    "x[0+1+2][z] = 2",
+                    "x[0+1+2].z = 2",
                     " }");
     Parser parser = buildParser(s);
     parser.parse();
@@ -275,8 +275,27 @@ public class ParserTest {
             ("fun void main() {",
                     "arr x = {1}",
                     "arr y = {x}",
-                    "var z = y[0][0]",
+                    "var z = y[0].x[1]",
                     " }");
+    Parser parser = buildParser(s);
+    parser.parse();
+  }
+
+  @Test
+  public void funWithArrays() throws Exception {
+    String s = buildString
+            ("fun void main() {}",
+                    " fun int[] testFun(int[] x){}");
+    Parser parser = buildParser(s);
+    parser.parse();
+  }
+
+  @Test
+  public void funWithArrays2() throws Exception {
+    String s = buildString
+            ("fun void main() {}",
+                    " fun int[] testFun(Node[] x){}",
+                    " type Node{}");
     Parser parser = buildParser(s);
     parser.parse();
   }
@@ -416,6 +435,22 @@ public class ParserTest {
   public void paramsFail() throws Exception {
     String s = buildString(
             "fun void main(int x, T z, y){",
+            "}");
+    Parser parser = buildParser(s);
+    try {
+      parser.parse();
+      fail("syntax error not detected");
+    } catch(MyPLException e) {
+      // can check message here if desired
+      // e.g., assertEquals("...", e.getMessage());
+    }
+  }
+
+  @Test
+  public void arrayDoubleAccesorFail() throws Exception {
+    String s = buildString(
+            "fun void main(int x, T z, y){",
+            "x.y[][]",
             "}");
     Parser parser = buildParser(s);
     try {

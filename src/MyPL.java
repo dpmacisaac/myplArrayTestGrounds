@@ -7,7 +7,7 @@
  *  Bazel commands: bazel build //:mypl  || bazel test --test_output=errors //... || bazel test --test_output=errors //:lexer-test
  * bazel-bin/mypl examples/
  */
-
+/*
 import java.io.InputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -15,7 +15,7 @@ import java.io.FileNotFoundException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-/*
+
 public class MyPL {
 
   public static void main(String[] args) {
@@ -84,8 +84,8 @@ public class MyPL {
       else if (printMode) {
         ASTParser parser = new ASTParser(lexer);
         Program program = parser.parse();
-        PrintVisitor visitor = new PrintVisitor(System.out);
-        program.accept(visitor);
+        //PrintVisitor visitor = new PrintVisitor(System.out);
+          // program.accept(visitor);
       }
       // run in static checker mode
       else if (checkMode) {
@@ -140,5 +140,4 @@ public class MyPL {
     System.out.println("  --ir       Print intermediate code.");
   }
   
-}
-*/
+}*/

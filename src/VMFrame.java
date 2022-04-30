@@ -29,7 +29,6 @@ public class VMFrame {
   // the program instructions 
   public List<VMInstr> instructions = new ArrayList<>();
 
-  // @TODO Should this be a HashMap? 
   public List<Object> variables = new ArrayList<>();
 
   // the operand stack

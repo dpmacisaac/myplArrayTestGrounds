@@ -7,7 +7,7 @@
 
 import java.util.*;
 
-/*
+
 public class CodeGenerator implements Visitor {
 
   // the user-defined type and function type information
@@ -24,6 +24,7 @@ public class CodeGenerator implements Visitor {
 
   // the current variable index (in the frame)
   private int currVarIndex = 0;
+  private int currOID = 1111;
 
   // to keep track of the typedecl objects for initialization
   Map<String,TypeDecl> typeDecls = new HashMap<>();
@@ -115,30 +116,59 @@ public class CodeGenerator implements Visitor {
   } //DONE
   
   public void visit(VarDeclStmt node) throws MyPLException {
-    node.expr.accept(this);
-    varMap.put(node.varName.lexeme(),currVarIndex);
-    currFrame.instructions.add(VMInstr.STORE(currVarIndex));
-    currVarIndex++;
+    if(node.isArray){
+      currFrame.instructions.add(VMInstr.CREATE());
+      for(Expr expr: node.exprs){
+        currFrame.instructions.add(VMInstr.DUP());
+        expr.accept(this);
+        currFrame.instructions.add(VMInstr.ADDVAL());
+      }
+      currFrame.instructions.add(VMInstr.STORE(currVarIndex));
+      varMap.put(node.varName.lexeme(), currVarIndex);
+      currVarIndex++;
+    }
+    else {
+      node.exprs.get(0).accept(this);
+      varMap.put(node.varName.lexeme(), currVarIndex);
+      currFrame.instructions.add(VMInstr.STORE(currVarIndex));
+      currVarIndex++;
+    }
+
   } //DONE
   
   public void visit(AssignStmt node) throws MyPLException {
     node.expr.accept(this);
+    Token currToken = (Token) node.lvalue.get(0).first;
     if(node.lvalue.size() == 1) {
-      currFrame.instructions.add(VMInstr.STORE(varMap.get(node.lvalue.get(0).lexeme())));
+      currFrame.instructions.add(VMInstr.STORE(varMap.get(currToken.lexeme())));
     }
     else{
-      currFrame.instructions.add(VMInstr.LOAD(varMap.get(node.lvalue.get(0).lexeme())));
-      //currFrame.instructions.add(VMInstr.SWAP());
+      currFrame.instructions.add(VMInstr.LOAD(varMap.get(currToken.lexeme())));
       for(int i = 1; i < node.lvalue.size()-1; i++){
-        //currFrame.instructions.add(VMInstr.SWAP());
-        currFrame.instructions.add(VMInstr.GETFLD(node.lvalue.get(i).lexeme()));
-        //currFrame.instructions.add(VMInstr.SWAP());
+        if(node.lvalue.get(i-1).second.equals(TokenType.ARR)){
+          Expr currExpr = (Expr) node.lvalue.get(i).first;
+          currExpr.accept(this);
+          currFrame.instructions.add(VMInstr.GETVAL());
+        }
+        else {
+          currToken = (Token) node.lvalue.get(i).first;
+          currFrame.instructions.add(VMInstr.GETFLD(currToken.lexeme()));
+        }
       }
-      currFrame.instructions.add(VMInstr.SWAP());
-      currFrame.instructions.add(VMInstr.SETFLD(node.lvalue.get(node.lvalue.size()-1).lexeme()));
+
+      if(node.lvalue.get(node.lvalue.size()-2).second.equals(TokenType.ARR)){
+        Expr currExpr = (Expr) node.lvalue.get(node.lvalue.size()-1).first;
+        currExpr.accept(this);
+        currFrame.instructions.add(VMInstr.SETVAL());
+      }
+      else {
+        currToken =(Token) node.lvalue.get(node.lvalue.size() - 1).first;
+        currFrame.instructions.add(VMInstr.SWAP());
+        currFrame.instructions.add(VMInstr.SETFLD(currToken.lexeme()));
+      }
     }
 
-  } //TODO: Add Paths
+  }
   
   public void visit(CondStmt node) throws MyPLException {
 
@@ -288,6 +318,17 @@ public class CodeGenerator implements Visitor {
     else if(node.funName.lexeme().equals("itos") || node.funName.lexeme().equals("dtos")){
       currFrame.instructions.add(VMInstr.TOSTR());
     }
+    else if (node.funName.lexeme().equals("add")){
+      currFrame.instructions.add(VMInstr.ADDVAL());
+      currFrame.instructions.add(VMInstr.PUSH(VM.NIL_OBJ));
+    }
+    else if (node.funName.lexeme().equals("remove")){
+      currFrame.instructions.add(VMInstr.RMVAL());
+      currFrame.instructions.add(VMInstr.PUSH(VM.NIL_OBJ));
+    }
+    else if (node.funName.lexeme().equals("size")){
+      currFrame.instructions.add(VMInstr.SIZE());
+    }
     // user-defined functions
     else
       currFrame.instructions.add(VMInstr.CALL(node.funName.lexeme()));
@@ -330,27 +371,47 @@ public class CodeGenerator implements Visitor {
   } //DONE
   
   public void visit(NewRValue node) throws MyPLException {
+    String typeName = node.typeName.lexeme();
     List<String> components = new ArrayList<>();
-    components.addAll(typeInfo.components(node.typeName.lexeme()));
+    components.addAll(typeInfo.components(typeName));
     currFrame.instructions.add(VMInstr.ALLOC(components));
+    currOID++;
     int i = 0;
     for(String component: components){
       currFrame.instructions.add(VMInstr.DUP());
-      typeDecls.get(node.typeName.lexeme()).vdecls.get(i).expr.accept(this);
-      //currFrame.instructions.add(VMInstr.PUSH(typeDecls.get(node.typeName.lexeme()).vdecls.get(i).expr));
+      if(typeDecls.get(typeName).vdecls.get(i).isArray){
+        currFrame.instructions.add(VMInstr.CREATE());
+        for(Expr expr : typeDecls.get(typeName).vdecls.get(i).exprs){
+          currFrame.instructions.add(VMInstr.DUP());
+          expr.accept(this);
+          currFrame.instructions.add(VMInstr.ADDVAL());
+        }
+      }
+      else {
+        typeDecls.get(typeName).vdecls.get(i).exprs.get(0).accept(this);
+      }
       currFrame.instructions.add(VMInstr.SETFLD(component));
       i++;
     }
   } //DONE
   
   public void visit(IDRValue node) throws MyPLException {
-    if (node.path.size() == 1) {
-      currFrame.instructions.add(VMInstr.LOAD(varMap.get(node.path.get(0).lexeme())));
-    }
-    else{
-      currFrame.instructions.add(VMInstr.LOAD(varMap.get(node.path.get(0).lexeme())));
+    Token currToken =(Token) node.path.get(0).first;
+
+    currFrame.instructions.add(VMInstr.LOAD(varMap.get(currToken.lexeme())));
+
+    if (node.path.size() > 1) {
+
       for(int i = 1; i<node.path.size(); i++){
-        currFrame.instructions.add(VMInstr.GETFLD(node.path.get(i).lexeme()));
+        if(node.path.get(i-1).second.equals(TokenType.ARR)) {
+          Expr currExpr = (Expr) node.path.get(i).first;
+          currExpr.accept(this);
+          currFrame.instructions.add(VMInstr.GETVAL());
+        }
+        else {
+          currToken = (Token) node.path.get(i).first;
+          currFrame.instructions.add(VMInstr.GETFLD(currToken.lexeme()));
+        }
       }
     }
 
@@ -430,4 +491,3 @@ public class CodeGenerator implements Visitor {
   } //DONE
 
 }
-*/

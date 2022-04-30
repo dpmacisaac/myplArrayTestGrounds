@@ -435,7 +435,7 @@ public class ASTParserTest {
   public void accessArrWithTypePath2() throws Exception {
     String s = buildString
             ("fun void main() {",
-                    "z[2].y.x[1][3] = 3",
+                    "z[2].y.x[1] = 3",
                     "}"
             );
     ASTParser parser = buildParser(s);
@@ -444,7 +444,7 @@ public class ASTParserTest {
 
     assertEquals(AssignStmt.class, assignStmt.getClass());
 
-    assertEquals(6, assignStmt.lvalue.size());
+    assertEquals(5, assignStmt.lvalue.size());
   }
 
   @Test
@@ -469,7 +469,7 @@ public class ASTParserTest {
   public void arrRValWithTypePath2() throws Exception {
     String s = buildString
             ("fun void main() {",
-                    "x = z.w[1+3+3].y.x[1][2][3]",
+                    "x = z.w[1+3+3].y.x[1]",
                     "}"
             );
     ASTParser parser = buildParser(s);
@@ -480,6 +480,30 @@ public class ASTParserTest {
     assertEquals(IDRValue.class, simpleTerm.rvalue.getClass());
 
 
-    assertEquals(8,idrValue.path.size());
+    assertEquals(6,idrValue.path.size());
+  }
+
+  @Test
+  public void funReturnArr() throws Exception {
+    String s = buildString
+            ("fun void main() {}",
+                    "fun int[] test(){}"
+            );
+    ASTParser parser = buildParser(s);
+    Program p = parser.parse();
+    FunDecl fd = (FunDecl) p.fdecls.get(1);
+    assertEquals(true, fd.returnArray);
+  }
+
+  @Test
+  public void funArrParam() throws Exception {
+    String s = buildString
+            ("fun void main() {}",
+                    "fun void test(int[] x, T[] y){}"
+            );
+    ASTParser parser = buildParser(s);
+    Program p = parser.parse();
+    FunParam param = (FunParam) p.fdecls.get(1).params.get(0);
+    assertEquals(true, param.isArray);
   }
 }

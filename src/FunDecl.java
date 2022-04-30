@@ -13,6 +13,7 @@ public class FunDecl implements ASTNode {
 
   public Token returnType = null;
   public Token funName = null;
+  public boolean returnArray = false;
   public List<FunParam> params = new ArrayList<>();
   public List<Stmt> stmts = new ArrayList<>();
   
