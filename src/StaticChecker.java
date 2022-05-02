@@ -7,7 +7,7 @@
  * Bazel commands: bazel build //:mypl  || bazel test --test_output=errors //... || bazel test --test_output=errors //:lexer-test
  * bazel-bin/mypl examples/
  */
-/*
+
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -23,10 +23,15 @@ public class StaticChecker implements Visitor {
 
   // the symbol table
   private SymbolTable symbolTable = new SymbolTable();
+
   // the current expression type
   private String currType = null;
+  private boolean currIsArr = false;
+
   // the program's user-defined (record) types and function signatures
   private TypeInfo typeInfo = null;
+
+  private String currArr = null;
 
   //--------------------------------------------------------------------
   // helper functions:
@@ -47,7 +52,17 @@ public class StaticChecker implements Visitor {
     types.addAll(Arrays.asList("int", "double", "bool", "char", "string",
                                "void"));
     for (String type : typeInfo.types())
-      if (symbolTable.get(type).equals("type"))
+      if (symbolTable.get(type).type.equals("type") || symbolTable.get(type).isArray)
+        types.add(type);
+    return types;
+  }
+
+  private List<String> getValidTypesNoArr(){
+    List<String> types = new ArrayList<>();
+    types.addAll(Arrays.asList("int", "double", "bool", "char", "string",
+            "void"));
+    for (String type : typeInfo.types())
+      if (symbolTable.get(type).type.equals("type"))
         types.add(type);
     return types;
   }
@@ -55,12 +70,12 @@ public class StaticChecker implements Visitor {
   // return the build in function names
   private List<String> getBuiltinFunctions() {
     return Arrays.asList("print", "read", "length", "get", "stoi",
-                         "stod", "itos", "itod", "dtos", "dtoi");
+                         "stod", "itos", "itod", "dtos", "dtoi", "size", "add", "remove");
   }
   
   // check if given token is a valid function signature return type
   private void checkReturnType(Token typeToken) throws MyPLException {
-    if (!getValidTypes().contains(typeToken.lexeme())) {
+    if (!getValidTypesNoArr().contains(typeToken.lexeme())) {
       String msg = "'" + typeToken.lexeme() + "' is an invalid return type";
       error(msg, typeToken);
     }
@@ -70,7 +85,7 @@ public class StaticChecker implements Visitor {
   private void checkParamType(Token typeToken) throws MyPLException {
     if (typeToken.equals("void"))
       error("'void' is an invalid parameter type", typeToken);
-    else if (!getValidTypes().contains(typeToken.lexeme())) {
+    else if (!getValidTypesNoArr().contains(typeToken.lexeme())) {
       String msg = "'" + typeToken.lexeme() + "' is an invalid return type";
       error(msg, typeToken);
     }
@@ -94,7 +109,7 @@ public class StaticChecker implements Visitor {
     else if (rvalue instanceof NewRValue)
       return ((NewRValue)rvalue).typeName;
     else if (rvalue instanceof IDRValue) {
-        return ((Token) ((IDRValue) rvalue).path.get(0).keySet().toArray()[0]);
+        return (Token) ((IDRValue)rvalue).path.get(0).first;
     }
     else if (rvalue instanceof CallExpr)
       return ((CallExpr)rvalue).funName;
@@ -119,15 +134,15 @@ public class StaticChecker implements Visitor {
   public void visit(Program node) throws MyPLException {
     // push the "global" environment
     symbolTable.pushEnvironment();
-
     // (1) add each user-defined type name to the symbol table and to
     // the list of rec types, check for duplicate names
     for (TypeDecl tdecl : node.tdecls) {
       String t = tdecl.typeName.lexeme();
-      if (symbolTable.nameExists(t))
+      if (symbolTable.nameExists(t)) {
         error("type '" + t + "' already defined", tdecl.typeName);
+      }
       // add as a record type to the symbol table
-      symbolTable.add(t, "type");
+      symbolTable.add(t,  new TypeHolder("type"));
       //system.out.println("added " + t + " to symbol table");
       // add initial type info (rest added by TypeDecl visit function)
       typeInfo.add(t);
@@ -146,8 +161,10 @@ public class StaticChecker implements Visitor {
       }
       // make sure the return type is a valid type
       checkReturnType(fdecl.returnType);
+
       // add to the symbol table as a function
-      symbolTable.add(funName, "fun");
+
+      symbolTable.add(funName, new TypeHolder("fun"));
       //System.out.println("added " + funName + " to symbol table");
       // add to typeInfo
       typeInfo.add(funName);
@@ -157,17 +174,17 @@ public class StaticChecker implements Visitor {
           error("Duplicate param ids",param.paramName);
         }
         checkParamType(param.paramType);
-        typeInfo.add(funName,param.paramName.lexeme(), param.paramType.lexeme());
+        typeInfo.add(funName,param.paramName.lexeme(),new TypeHolder(param.paramType.lexeme(), param.isArray));
       }
       // add the return type
-      typeInfo.add(funName, "return", fdecl.returnType.lexeme());
+      typeInfo.add(funName, "return", new TypeHolder(fdecl.returnType.lexeme(), fdecl.returnArray));
     }
 
     // ensure "void main()" defined and it has correct signature
     if(!symbolTable.nameExists("main")){
       error("main does not exist", null);
     }
-    if(!typeInfo.get("main", "return").equals("void")){
+    if(!typeInfo.get("main", "return").type.equals("void")){
       error("main not defined with return type 'void'", null);
     }
 
@@ -192,7 +209,7 @@ public class StaticChecker implements Visitor {
     for(VarDeclStmt varDeclStmt: node.vdecls){
       varDeclStmt.accept(this);
       String nameOfVar = varDeclStmt.varName.lexeme();
-      typeInfo.add(typeName,nameOfVar, currType);
+      typeInfo.add(typeName,nameOfVar, new TypeHolder(currType, currIsArr));
     }
     symbolTable.popEnvironment();
   }
@@ -200,10 +217,10 @@ public class StaticChecker implements Visitor {
   public void visit(FunDecl node) throws MyPLException {
     symbolTable.pushEnvironment();
     for(FunParam param: node.params){
-      symbolTable.add(param.paramName.lexeme(), param.paramType.lexeme());
+      symbolTable.add(param.paramName.lexeme(), new TypeHolder(param.paramType.lexeme(), param.isArray));
       //System.out.println("added " + param.paramName.lexeme() + " to symbol table");
     }
-    symbolTable.add("return",node.returnType.lexeme());
+    symbolTable.add("return",new TypeHolder(node.returnType.lexeme(),node.returnArray));
     for(Stmt stmt: node.stmts){
       stmt.accept(this);
     }
@@ -217,77 +234,171 @@ public class StaticChecker implements Visitor {
   //--------------------------------------------------------------------
   
   public void visit(VarDeclStmt node) throws MyPLException {
-    node.expr.accept(this);
-    //System.out.println(node.varName.lexeme() + " " + node.varName.line() + " " + currType);
-
-    //check that expr was not a type or a function
-    if(currType.equals("type") || currType.equals("fun")){
-      error("invalid variable declaration type", getFirstToken(node.expr));
-    }
-
     //check that variable name hasn't been used in the current environment before
-    if(symbolTable.nameExistsInCurrEnv(node.varName.lexeme())){
+    if (symbolTable.nameExistsInCurrEnv(node.varName.lexeme())) {
       error("duplicate variable name", node.varName);
     }
+    // var is NOT an array
+    if(!node.isArray) {
+        //it only has one expr since its not an array
+      node.exprs.get(0).accept(this);
 
-    //Explicit Declaration
-    if(node.typeName != null){
-      if(!node.typeName.lexeme().equals(currType) && !currType.equals("void")) {
-        error("explicit var type does not match assignment type", node.typeName);
+      //check that expr was not a type or a function
+      if (currType.equals("type") || currType.equals("fun")) {
+        error("invalid variable declaration type", getFirstToken(node.exprs.get(0)));
       }
-      currType = node.typeName.lexeme();
-      symbolTable.add(node.varName.lexeme(), currType);
-    } //Implicit Declaration
+
+      //Explicit Declaration
+      if (node.typeName != null) {
+        if (!node.typeName.lexeme().equals(currType) && !currType.equals("void")) {
+          error("explicit var type does not match assignment type", node.typeName);
+        }
+        currType = node.typeName.lexeme();
+        symbolTable.add(node.varName.lexeme(), new TypeHolder(currType, false));
+      } //Implicit Declaration
+      else {
+        if (currType.equals("void")) { //implicit can't be void
+          error("implicit var declaration cannot be assigned nil", node.varName);
+        }
+        symbolTable.add(node.varName.lexeme(), new TypeHolder(currType, false));
+      }
+
+      if(currIsArr){
+          error("can't have array variable in vardeclstmt", node.varName);
+      }
+      currIsArr = false;
+    }
+    //var IS an array
     else{
-      if(currType.equals("void")){ //implicit can't be void
-        error("implicit var declaration cannot be assigned nil", node.varName);
+      //No exprs + implicit Declaration check
+      if(node.exprs.size() == 0){
+        if(node.typeName == null){
+          error("implicit var declaration cannot be assigned nil", node.varName);
+        }
+
+        symbolTable.add(node.varName.lexeme(), new TypeHolder(node.typeName.lexeme(), true));
       }
-      symbolTable.add(node.varName.lexeme(), currType);
+      else{
+        String typeOfArr = null;
+        if(node.typeName!= null){
+          typeOfArr = node.typeName.lexeme();
+        }
+        for (Expr expr: node.exprs) {
+          expr.accept(this);
+          if(currIsArr){
+            error("can't have array variable in vardeclstmt", node.varName);
+          }
+          //check name
+          if (currType.equals("type") || currType.equals("fun")) {
+            error("invalid variable declaration type in array", getFirstToken(expr));
+          }
+
+          //Explict Declaration - check that all exprs are the same type
+          if (node.typeName != null) {
+            if (!node.typeName.lexeme().equals(currType) && !currType.equals("void")) {
+              error("explicit var type does not match assignment type in array", node.typeName);
+            }
+          }
+          //Implicit Declaration - check that all exprs are the same type
+          else {
+            if (typeOfArr == null) {
+                typeOfArr = currType;
+            }
+            else {
+              if (!typeOfArr.equals(currType)) {
+                error("variables in array not homogenous", node.typeName);
+              }
+            }
+          }
+        }
+        currType = typeOfArr;
+        symbolTable.add(node.varName.lexeme(), new TypeHolder(typeOfArr, true));
+
+      }
+      currIsArr = true;
     }
   }
 
   public void visit(AssignStmt node) throws MyPLException {
-    //Not a Path
-    if(node.lvalue.size() == 1){
-      if(symbolTable.nameExists(node.lvalue.get(0).lexeme()) && !symbolTable.get(node.lvalue.get(0).lexeme()).equals("fun")) {
-        currType = symbolTable.get(node.lvalue.get(0).lexeme());
+      Token currentToken = (Token) node.lvalue.get(0).first;
+      int pathSize = node.lvalue.size();
+      //if no path - simple id
+      if(pathSize == 1){
+          if(symbolTable.nameExists(currentToken.lexeme())) {
+              currType = symbolTable.get(currentToken.lexeme()).type;
+              currIsArr = symbolTable.get(currentToken.lexeme()).isArray;
+          }
+          else{
+              error("idrvalue error", currentToken);
+          }
       }
-      else{
-        error("idrvalue error", node.lvalue.get(0));
-      }
-    }
-    else{ //A Path
-      String pathVarName = node.lvalue.get(0).lexeme();
-      if(!symbolTable.nameExists(pathVarName)){ //checks that the var name exist in symbolTable
-        error("path not in symbolTable", node.lvalue.get(0));
-      }
-      String udtType = symbolTable.get(pathVarName); //gets the type of the first path variable name
-      for(int i = 1; i < node.lvalue.size()-1; i++){
-        pathVarName = node.lvalue.get(i).lexeme();
-        if(!typeInfo.components(udtType).contains(pathVarName)){
-          error("path not in typeInfo", node.lvalue.get(i));
-        }
-        udtType = typeInfo.get(udtType, pathVarName);
-      }
-      if(!typeInfo.components(udtType).contains(node.lvalue.get(node.lvalue.size()-1).lexeme())){
-        error("path not in typeInfo", node.lvalue.get(node.lvalue.size()-1));
-      }
-      currType = typeInfo.get(udtType,node.lvalue.get(node.lvalue.size()-1).lexeme());
-    }
-    String lhs = currType;
-    String rhs = "";
-    node.expr.accept(this);
-    rhs = currType;
+      else {
+        //path
+        String currPathName = currentToken.lexeme();
+        String currPathType = symbolTable.get(currPathName).type;
+        String oldPathType = "";
+        boolean checkingArray = node.lvalue.get(0).isArray;
+        boolean typeCheck = false;
+        Expr currExpr = null;
 
-    if(!lhs.equals(rhs) && !rhs.equals("void")){
-      error("assignment error", getFirstToken(node.expr));
-    }
+        if (checkingArray) {
+          if (!symbolTable.get(currPathName).isArray) {
+            error("not an array in idrval", currentToken);
+          }
+        }
+        else {
+          if (!typeInfo.types().contains(currPathType)) {
+            error("type doesn't exist", currentToken);
+          }
+        }
+
+        for (int i = 1; i < pathSize; i++) {
+          if (checkingArray) {
+            currExpr = (Expr) node.lvalue.get(i).first;
+            currExpr.accept(this);
+            if (!currType.equals("int") || currIsArr) {
+              error("expecting int in array access in idrval", currentToken);
+            }
+            currType = currPathType;
+            checkingArray = node.lvalue.get(i).isArray;
+
+            if (typeCheck) {
+              if (!typeInfo.get(oldPathType, currPathName).isArray) {
+                error("type incorrect", currentToken);
+              }
+            }
+            currIsArr = false;
+          }
+          else {
+            oldPathType = currPathType;
+            currentToken = (Token) node.lvalue.get(i).first;
+            currPathName = currentToken.lexeme();
+            if (!typeInfo.components(currPathType).contains(currPathName)) {
+              error("path doesnt exist in udt in idrval", currentToken);
+            }
+            currType = typeInfo.get(currPathType, currPathName).type;
+            currIsArr = typeInfo.get(currPathType, currPathName).isArray;
+            currPathType = currType;
+            checkingArray = node.lvalue.get(i).isArray;
+            typeCheck = true;
+          }
+        }
+      }
+      String lhs = currType;
+      boolean lhsarray = currIsArr;
+      String rhs = "";
+      node.expr.accept(this);
+      rhs = currType;
+      boolean rhsarray = currIsArr;
+      if((!lhs.equals(rhs) && !rhs.equals("void")) || (lhsarray != rhsarray)){
+        error("assignment error", getFirstToken(node.expr));
+      }
   }
 
   public void visit(CondStmt node) throws MyPLException {
     symbolTable.pushEnvironment();
     node.ifPart.cond.accept(this);
-    if(!currType.equals("bool")){
+    if(!currType.equals("bool")|| currIsArr){
       error("non-bool expression in if statement", getFirstToken(node.ifPart.cond));
     }
     for(Stmt stmt: node.ifPart.stmts){
@@ -298,7 +409,7 @@ public class StaticChecker implements Visitor {
     for(BasicIf elifs : node.elifs){
       symbolTable.pushEnvironment();
       elifs.cond.accept(this);
-      if(!currType.equals("bool")){
+      if(!currType.equals("bool")|| currIsArr){
         error("non-bool expression in if statement", getFirstToken(elifs.cond));
       }
       for(Stmt stmt: elifs.stmts){
@@ -318,7 +429,7 @@ public class StaticChecker implements Visitor {
   public void visit(WhileStmt node) throws MyPLException {
     symbolTable.pushEnvironment();
     node.cond.accept(this);
-    if(!currType.equals("bool")){
+    if(!currType.equals("bool") || currIsArr){
       error("non-bool expression in while loop", getFirstToken(node.cond));
     }
     for(Stmt stmt: node.stmts){
@@ -329,13 +440,13 @@ public class StaticChecker implements Visitor {
 
   public void visit(ForStmt node) throws MyPLException {
     symbolTable.pushEnvironment();
-    symbolTable.add(node.varName.lexeme(), "int");
+    symbolTable.add(node.varName.lexeme(), new TypeHolder("int"));
     node.start.accept(this);
-    if(!currType.equals("int")){
+    if(!currType.equals("int") || currIsArr){
       error("non int expression in start of for loop", getFirstToken(node.start));
     }
     node.end.accept(this);
-    if(!currType.equals("int")){
+    if(!currType.equals("int")|| currIsArr){
       error("non int expression in end of for loop", getFirstToken(node.end));
     }
     for(Stmt stmt: node.stmts){
@@ -351,9 +462,12 @@ public class StaticChecker implements Visitor {
     else{
       currType = "void";
     }
-    String returnType = symbolTable.get("return");
-    if(!currType.equals("void") && !currType.equals(returnType)){
+    TypeHolder returnType = symbolTable.get("return");
+    if(!currType.equals("void") && !currType.equals(returnType.type)){
       error("invalid return type", getFirstToken(node.expr));
+    }
+    if(currIsArr != returnType.isArray){
+        error("invalid return type", getFirstToken(node.expr));
     }
 
   } //DONE
@@ -362,13 +476,14 @@ public class StaticChecker implements Visitor {
     if(!symbolTable.nameExists(node.varName.lexeme())){
       error("variable id being deleted does not exist", node.varName);
     }
-    if(symbolTable.get(node.varName.lexeme()).equals("int") || symbolTable.get(node.varName.lexeme()).equals("double")||
-            symbolTable.get(node.varName.lexeme()).equals("char") || symbolTable.get(node.varName.lexeme()).equals("string") ||
-            symbolTable.get(node.varName.lexeme()).equals("bool") || symbolTable.get(node.varName.lexeme()).equals("fun")|| symbolTable.get(node.varName.lexeme()).equals("void")){
+    if(symbolTable.get(node.varName.lexeme()).type.equals("int") || symbolTable.get(node.varName.lexeme()).type.equals("double")||
+            symbolTable.get(node.varName.lexeme()).type.equals("char") || symbolTable.get(node.varName.lexeme()).type.equals("string") ||
+            symbolTable.get(node.varName.lexeme()).type.equals("bool") || symbolTable.get(node.varName.lexeme()).type.equals("fun")||
+            symbolTable.get(node.varName.lexeme()).type.equals("void")){
       error("variable id being deleted is not a UDT", node.varName);
     }
 
-    if(!symbolTable.get(node.varName.lexeme()).equals("type")){
+    if(!typeInfo.types().contains(symbolTable.get(node.varName.lexeme()).type)){
       error("variable id being deleted is not a UDT", node.varName);
     }
 
@@ -387,7 +502,11 @@ public class StaticChecker implements Visitor {
       // has to have one argument, any type is allowed
       if (node.args.size() != 1)
         error("print expects one argument", node.funName);
+      if(currIsArr){
+          error("print doesn't accept arrays", node.funName);
+      }
       currType = "void";
+      currIsArr = false;
       return true;
     }
     else if (funName.equals("read")) {
@@ -395,6 +514,7 @@ public class StaticChecker implements Visitor {
       if (node.args.size() != 0)
         error("read takes no arguments", node.funName);
       currType = "string";
+      currIsArr = false;
 
       return true;
     }
@@ -404,9 +524,10 @@ public class StaticChecker implements Visitor {
         error("length expects one argument", node.funName);
       Expr e = node.args.get(0);
       e.accept(this);
-      if (!currType.equals("string"))
+      if (!currType.equals("string") || currIsArr)
         error("expecting string in length", getFirstToken(e));
       currType = "int";
+      currIsArr = false;
       return true;
     }
     else if (funName.equals("get")) {
@@ -414,13 +535,14 @@ public class StaticChecker implements Visitor {
         error("get expects two argument", node.funName);
       Expr e1 = node.args.get(0);
       e1.accept(this);
-      if (!currType.equals("int"))
+      if (!currType.equals("int") || currIsArr)
         error("expecting int in get at first argument", getFirstToken(e1));
       Expr e2 = node.args.get(1);
       e2.accept(this);
-      if (!currType.equals("string"))
+      if (!currType.equals("string")|| currIsArr)
         error("expecting string in get at second argument", getFirstToken(e2));
       currType = "char";
+      currIsArr = false;
       return true;
     }
     else if (funName.equals("stoi")) {
@@ -429,10 +551,11 @@ public class StaticChecker implements Visitor {
       }
       Expr e = node.args.get(0);
       e.accept(this);
-      if (!currType.equals("string")) {
+      if (!currType.equals("string")|| currIsArr) {
         error("expecting string in stoi", getFirstToken(e));
       }
       currType = "int";
+      currIsArr = false;
       return true;
     }
     else if (funName.equals("stod")) {
@@ -441,10 +564,11 @@ public class StaticChecker implements Visitor {
       }
       Expr e = node.args.get(0);
       e.accept(this);
-      if (!currType.equals("string")) {
+      if (!currType.equals("string")|| currIsArr) {
         error("expecting string in stod", getFirstToken(e));
       }
       currType = "double";
+      currIsArr = false;
       return true;
     }
     else if (funName.equals("itos")) {
@@ -453,10 +577,11 @@ public class StaticChecker implements Visitor {
       }
       Expr e = node.args.get(0);
       e.accept(this);
-      if (!currType.equals("int")) {
+      if (!currType.equals("int")|| currIsArr) {
         error("expecting int in itos", getFirstToken(e));
       }
       currType = "string";
+      currIsArr = false;
       return true;
     }
     else if (funName.equals("itod")) {
@@ -465,10 +590,11 @@ public class StaticChecker implements Visitor {
       }
       Expr e = node.args.get(0);
       e.accept(this);
-      if (!currType.equals("int")) {
+      if (!currType.equals("int")|| currIsArr) {
         error("expecting int in itod", getFirstToken(e));
       }
       currType = "double";
+      currIsArr = false;
       return true;
     }
     else if (funName.equals("dtos")) {
@@ -477,26 +603,80 @@ public class StaticChecker implements Visitor {
       }
       Expr e = node.args.get(0);
       e.accept(this);
-      if (!currType.equals("double")) {
+      if (!currType.equals("double")|| currIsArr) {
         error("expecting double in dtos", getFirstToken(e));
       }
       currType = "string";
+      currIsArr = false;
 
       return true;
     }
+
     else if (funName.equals("dtoi")) {
       if (node.args.size() != 1) {
         error("dtoi expects one argument", node.funName);
       }
       Expr e = node.args.get(0);
       e.accept(this);
-      if (!currType.equals("double")) {
+      if (!currType.equals("double")|| currIsArr) {
         error("expecting double in dtoi", getFirstToken(e));
       }
       currType = "int";
-
+      currIsArr = false;
       return true;
     }
+    else if (funName.equals("size")) {
+      if (node.args.size() != 1) {
+        error("size expects one argument", node.funName);
+      }
+      Expr e = node.args.get(0);
+      e.accept(this);
+      if (!currIsArr) {
+        error("expecting double in size", getFirstToken(e));
+      }
+      currType = "int";
+      currIsArr = false;
+      return true;
+    }
+
+    else if (funName.equals("add")) {
+      if (node.args.size() != 2) {
+        error("add expects two argument", node.funName);
+      }
+      Expr e = node.args.get(0);
+      e.accept(this);
+      if (!currIsArr) {
+        error("expecting arr in size", getFirstToken(e));
+      }
+      String arrTypeForCall = currType;
+      Expr e2 = node.args.get(1);
+      e2.accept(this);
+      if (!arrTypeForCall.equals(currType)) {
+        error("expecting value of same type of array", getFirstToken(e));
+      }
+      currType = "nil";
+      currIsArr = false;
+      return true;
+    }
+    else if (funName.equals("remove")) {
+      if (node.args.size() != 2) {
+        error("add expects two argument", node.funName);
+      }
+      Expr e = node.args.get(0);
+      e.accept(this);
+      if(!currIsArr) {
+        error("expecting arr in size", getFirstToken(e));
+      }
+      Expr e2 = node.args.get(1);
+      e2.accept(this);
+      if (!currType.equals("int") || currIsArr) {
+        error("expecting int value in remove", getFirstToken(e));
+      }
+      currType = "nil";
+      currIsArr = false;
+      return true;
+    }
+
     return false;
   } //DONE
 
@@ -504,29 +684,32 @@ public class StaticChecker implements Visitor {
   public void visit(CallExpr node) throws MyPLException {
     boolean found = false;
     String paramName, paramType = "";
+    boolean paramIsArr = false;
     int argSize = node.args.size();
     found = checkBuiltIn(node);
     if(!found){
       String nameOfFunct = node.funName.lexeme();
-      if(!symbolTable.nameExists(nameOfFunct)){
+      if(!symbolTable.nameExists(nameOfFunct) || !symbolTable.get(nameOfFunct).type.equals("fun")){
         error("function, "+ nameOfFunct + ", not found", node.funName);
       }
 
       if(argSize + 1 != typeInfo.components(nameOfFunct).size()){
         //System.out.println(argSize +  "  " + typeInfo.components(nameOfFunct).size());
-        error("incorrect amoung of arguement in call function", getFirstToken(node));
+        error("incorrect amount of argument in call function", getFirstToken(node));
       }
       for(int i = 0; i < argSize; i++){
         node.args.get(i).accept(this);
         paramName = typeInfo.components(nameOfFunct).toArray()[i].toString();
-        paramType = typeInfo.get(nameOfFunct, paramName);
+        paramType = typeInfo.get(nameOfFunct, paramName).type;
+        paramIsArr = typeInfo.get(nameOfFunct, paramName).isArray;
         //System.out.println(node.funName.lexeme() + "  " + paramName + " " +paramType + " current: " + currType);
-        if(!currType.equals(paramType) && !currType.equals("void")){
+        if(!currType.equals(paramType) && !currType.equals("void") || paramIsArr != currIsArr){
           error("incorrect argument in function " + node.funName.lexeme(), node.funName);
         }
       }
       paramName = typeInfo.components(nameOfFunct).toArray()[argSize].toString();
-      currType = typeInfo.get(nameOfFunct, paramName);
+      currType = typeInfo.get(nameOfFunct, paramName).type;
+      currIsArr = typeInfo.get(nameOfFunct, paramName).isArray;
     }
 
   } //DONE
@@ -538,6 +721,7 @@ public class StaticChecker implements Visitor {
   
   public void visit(SimpleRValue node) throws MyPLException {
     TokenType tokenType = node.value.type();
+    currIsArr = false;
     if (tokenType == TokenType.INT_VAL)
       currType = "int";
     else if (tokenType == TokenType.DOUBLE_VAL)
@@ -554,49 +738,166 @@ public class StaticChecker implements Visitor {
   
     
   public void visit(NewRValue node) throws MyPLException {
-    if(symbolTable.nameExists(node.typeName.lexeme()) && symbolTable.get(node.typeName.lexeme()).equals("type")){
+    if(symbolTable.nameExists(node.typeName.lexeme()) && symbolTable.get(node.typeName.lexeme()).type.equals("type")){
       currType = node.typeName.lexeme();
+      currIsArr = false;
     }
     else{
       error("new node not a defined type",node.typeName);
     }
   }
-  
-      
+
+
   public void visit(IDRValue node) throws MyPLException {
-    if(node.path.size() == 1){
-      if(symbolTable.nameExists(node.path.get(0).lexeme())) {
-        currType = symbolTable.get(node.path.get(0).lexeme());
+    Token currentToken = (Token) node.path.get(0).first;
+    int pathSize = node.path.size();
+    //if no path - simple id
+    if(pathSize == 1){
+      if(symbolTable.nameExists(currentToken.lexeme())) {
+        currType = symbolTable.get(currentToken.lexeme()).type;
+        currIsArr = symbolTable.get(currentToken.lexeme()).isArray;
       }
       else{
-        error("idrvalue error", node.path.get(0));
+        error("idrvalue error", currentToken);
+      }
+      return;
+    }
+    //path
+    String currPathName = currentToken.lexeme();
+    String currPathType = symbolTable.get(currPathName).type;
+    String oldPathType = "";
+    boolean checkingArray = node.path.get(0).isArray;
+    boolean typeCheck = false;
+    Expr currExpr = null;
+
+    if(checkingArray){
+      if(!symbolTable.get(currPathName).isArray){
+        error("not an array in idrval",currentToken);
       }
     }
     else{
-      String pathName = node.path.get(0).lexeme();
-      if(!symbolTable.nameExists(pathName)){
-        error("path not in symbolTable", node.path.get(0));
+      if(!typeInfo.types().contains(currPathType)){
+        error("type doesn't exist", currentToken);
       }
-      String udtType = symbolTable.get(pathName);
-      for(int i = 1; i < node.path.size()-1; i++){
-        pathName = node.path.get(i).lexeme();
-        if(!typeInfo.components(udtType).contains(pathName)){
-          error("path not in typeInfo", node.path.get(i));
-        }
-        udtType = typeInfo.get(udtType, pathName);
-      }
-      if(!typeInfo.components(udtType).contains(node.path.get(node.path.size()-1).lexeme())){
-        error("path not in typeInfo", node.path.get(node.path.size()-1));
-      }
-      currType = typeInfo.get(udtType,node.path.get(node.path.size()-1).lexeme());
     }
-    
+
+    for(int i = 1; i < pathSize; i++){
+      if(checkingArray) {
+        currExpr = (Expr) node.path.get(i).first;
+        currExpr.accept(this);
+        if (!currType.equals("int") || currIsArr) {
+          error("expecting int in array access in idrval", currentToken);
+        }
+        currType = currPathType;
+        checkingArray = node.path.get(i).isArray;
+
+        if(typeCheck){
+          if (!typeInfo.get(oldPathType, currPathName).isArray) {
+            error("type incorrect", currentToken);
+          }
+        }
+        currIsArr = false;
+      }
+      else{
+        oldPathType = currPathType;
+        currentToken = (Token) node.path.get(i).first;
+        currPathName = currentToken.lexeme();
+        if(!typeInfo.components(currPathType).contains(currPathName)){
+          error("path doesnt exist in udt in idrval", currentToken);
+        }
+        currType = typeInfo.get(currPathType, currPathName).type;
+        currIsArr = typeInfo.get(currPathType, currPathName).isArray;
+        currPathType = currType;
+        checkingArray = node.path.get(i).isArray;
+        typeCheck = true;
+      }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      /*
+      String currName = currentToken.lexeme();
+      String currPathType = "";
+      boolean arrayCheck = false;
+      Expr currentExpr = null;
+      //start of path
+      if(!symbolTable.nameExists(currName)){
+        error("path not in symbolTable in idrvalue", currentToken);
+      }
+      arrayCheck = node.path.get(0).second.equals(TokenType.ARR);
+      currPathType = symbolTable.get(currName).type;
+      if(arrayCheck){ //if its an array then get the type of the array
+        if(!symbolTable.get(currName).isArray){
+          error("not a arr in idrval", currentToken);
+        }
+      }
+      //loop
+      for(int i = 1; i < pathSize-1; i++){
+        if(arrayCheck){
+          currentExpr = (Expr) node.path.get(i).first;
+          currentExpr.accept(this);
+          if(!currType.equals("int")){
+            error("incorrect type in array in idrvalue", currentToken);
+          }
+          currType = currPathType;
+        }
+        else{
+          currentToken = (Token) node.path.get(i).first;
+          currName = currentToken.lexeme();
+          if(!typeInfo.components(currPathType).contains(currName)){
+            error("path not in typeInfo", currentToken);
+          }
+          currType = typeInfo.get(currPathType, currName).type;
+          currIsArr = typeInfo.get(currPathType, currName).isArray;
+        }
+
+        arrayCheck = node.path.get(i).second.equals(TokenType.ARR);
+        if(!arrayCheck){
+          currPathType = currType;
+        }
+        else{
+          currentToken = (Token) node.path.get(i).first;
+        }
+      }
+
+      if(arrayCheck){
+        currentExpr = (Expr) node.path.get(pathSize-1).first;
+        currentExpr.accept(this);
+        if(!currType.equals("int")){
+          error("incorrect type in array in idrvalue", currentToken);
+        }
+        currType = currPathType;
+        currIsArr = false;
+      }
+      else{
+        currentToken = (Token) node.path.get(pathSize-1).first;
+        currName = currentToken.lexeme();
+        if(!typeInfo.components(currPathType).contains(currName)){
+          error("path not in typeInfo", currentToken);
+        }
+        currType = typeInfo.get(currPathType,currName).type;
+        currIsArr = typeInfo.get(currPathType,currName).isArray;
+      }
+      */
   }
   
       
   public void visit(NegatedRValue node) throws MyPLException {
     node.expr.accept(this);
-    if(!(currType.equals("int") || currType.equals("double"))){
+    if(!(currType.equals("int") || currType.equals("double") || currIsArr)){
       error("negated r value on a non int or double type", node.expr.op);
     }
   }
@@ -608,9 +909,12 @@ public class StaticChecker implements Visitor {
   
   public void visit(Expr node) throws MyPLException {
     String lhsType = "";
+    boolean lhsArr = false;
     String rhsType = "";
+    boolean rhsArr = false;
     node.first.accept(this);
     lhsType = currType;
+    lhsArr = currIsArr;
     if(node.rest == null) {
       if(node.logicallyNegated && !currType.equals("bool")){
         error("logical negation on non bool type", node.op);
@@ -619,8 +923,16 @@ public class StaticChecker implements Visitor {
     }
     node.rest.accept(this);
     rhsType = currType;
-
-    if( node.op.type() == TokenType.MINUS ||node.op.type() == TokenType.MULTIPLY || node.op.type() == TokenType.DIVIDE){
+    rhsArr = currIsArr;
+    if((rhsArr && !lhsArr) ||(!rhsArr && lhsArr)){
+      error("expr error, one side array one side not", getFirstToken(node));
+    }
+    if(rhsArr && lhsArr){
+      currType = lhsType;
+      return;
+    }
+    currIsArr = false;
+    if(node.op.type() == TokenType.MINUS ||node.op.type() == TokenType.MULTIPLY || node.op.type() == TokenType.DIVIDE){
       if(lhsType.equals("int") && rhsType.equals("int")){
         currType = "int";
       }
@@ -700,4 +1012,3 @@ public class StaticChecker implements Visitor {
   }
 
 }
-*/

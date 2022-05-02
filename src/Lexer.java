@@ -258,10 +258,11 @@ public class Lexer {
               return new Token(TokenType.CHAR_VAL, lexeme.toString(), tokenLine, tokenColumn);
             }
           }*/
+          /*
           else if(isSymbol(currChar, '\n')){
             tokenColumn++;
             error("found newline in character", tokenLine, tokenColumn);
-          }
+          }*/
           else {
             lexeme.append((char)currChar);
             empty = false;

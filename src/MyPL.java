@@ -15,7 +15,7 @@ import java.io.FileNotFoundException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-/*
+
 public class MyPL {
 
   public static void main(String[] args) {
@@ -84,8 +84,8 @@ public class MyPL {
       else if (printMode) {
         ASTParser parser = new ASTParser(lexer);
         Program program = parser.parse();
-        PrintVisitor visitor = new PrintVisitor(System.out);
-        program.accept(visitor);
+        //PrintVisitor visitor = new PrintVisitor(System.out);
+          // program.accept(visitor);
       }
       // run in static checker mode
       else if (checkMode) {
@@ -141,4 +141,3 @@ public class MyPL {
   }
   
 }
-*/

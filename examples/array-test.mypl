@@ -1,0 +1,6 @@
+type Node { arr x = {1,2,3}}
+                    fun void main() {
+                    var x = new Node
+                    arr nodeList = {x}
+                    print(itos(nodeList[0].x[2]))
+                    }

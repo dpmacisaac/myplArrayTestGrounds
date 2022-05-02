@@ -45,6 +45,8 @@ class VM {
   
   // the VM's heap (free store) accessible via object-id
   private Map<Integer,Map<String,Object>> heap = new HashMap<>();
+
+  private Map<Integer,ArrayList<Object>> arrayObjects = new HashMap<>();
   
   // next available object-id
   private int objectId = 1111;
@@ -109,6 +111,7 @@ class VM {
         System.out.println("\t INSTRUCTION..: " + instr);
         System.out.println("\t OPERAND STACK: " + frame.operandStack);
         System.out.println("\t HEAP ........: " + heap);
+        System.out.println("\t ARR ........: " + arrayObjects);
         System.out.println("TEST VARIABLE SIZE: ") ;
         int i = 0;
         for(Object vars: frame.variables) {
@@ -520,6 +523,48 @@ class VM {
         }
         frame.operandStack.push(got);
       }
+
+
+      //------------------------------------------------------------
+      // Arrays
+      //------------------------------------------------------------
+      else if (instr.opcode() == OpCode.CREATE) {
+        arrayObjects.put(objectId, new ArrayList<>());
+        int id = objectId;
+        objectId++;
+        frame.operandStack.push(id);
+      }
+
+      else if (instr.opcode() == OpCode.GETVAL) {
+        Object index = frame.operandStack.pop();
+        Object id = frame.operandStack.pop();
+        frame.operandStack.push(arrayObjects.get((int) id).get((int) index));
+      }
+
+      else if (instr.opcode() == OpCode.SETVAL) {
+        Object index = frame.operandStack.pop();
+        Object id = frame.operandStack.pop();
+        Object item = frame.operandStack.pop();
+        arrayObjects.get((int) id).set((int) index, item);
+      }
+
+      else if (instr.opcode() == OpCode.ADDVAL) {
+        Object item = frame.operandStack.pop();
+        Object id = frame.operandStack.pop();
+        arrayObjects.get((int) id).add(item);
+      }
+
+      else if (instr.opcode() == OpCode.RMVAL) {
+        Object index = frame.operandStack.pop();
+        Object id = frame.operandStack.pop();
+        arrayObjects.get((int) id).remove((int) index);
+      }
+
+      else if (instr.opcode() == OpCode.SIZE) {
+        Object id = frame.operandStack.pop();
+        frame.operandStack.push(arrayObjects.get((int) id).size());
+      }
+
 
       //------------------------------------------------------------
       // Special instructions

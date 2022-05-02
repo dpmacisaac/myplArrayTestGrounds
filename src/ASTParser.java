@@ -16,11 +16,14 @@ import java.util.Map;
 
 
 public class ASTParser {
-
   private Lexer lexer = null;
   private Token currToken = null;
   private Token pastToken = null;
+  private boolean currIsArr = false;
   private final boolean DEBUG = false;
+
+  private final static int NO_ARRAY_CHECK = 0;
+  private final static int CHECK_ARRAY = 1;
 
   /** 
    */
@@ -136,6 +139,7 @@ public class ASTParser {
 
     if(match(TokenType.ID)){
       typeDecl.typeName = currToken;
+      currIsArr = false;
       advance();
     }
     else{
@@ -163,7 +167,7 @@ public class ASTParser {
     eat(TokenType.FUN, "expecting FUN in fdecl");
     if(!match(TokenType.VOID_TYPE)){
       funDecl.returnType = currToken;
-      dtype();
+      funDecl.returnArray = dtype(CHECK_ARRAY);
     }
     else{
       funDecl.returnType = currToken;
@@ -188,7 +192,7 @@ public class ASTParser {
     if(isPrimitiveType() || match(TokenType.ID)) {
       funParam = new FunParam();
       funParam.paramType = currToken;
-      dtype();
+      funParam.isArray = dtype(CHECK_ARRAY);
       funParam.paramName = currToken;
       eat(TokenType.ID, "expecting ID in params");
       params.add(funParam);
@@ -196,7 +200,7 @@ public class ASTParser {
         funParam = new FunParam();
         advance();
         funParam.paramType = currToken;
-        dtype();
+        funParam.isArray = dtype(CHECK_ARRAY);
         funParam.paramName = currToken;
         eat(TokenType.ID, "expecting ID in params");
         params.add(funParam);
@@ -204,13 +208,21 @@ public class ASTParser {
     }
   } //FIN
 
-  private void dtype() throws MyPLException{
+  private boolean dtype(int mode) throws MyPLException{
     if(isPrimitiveType() || match(TokenType.ID)){
       advance();
     }
     else{
       error("expecting dtype");
     }
+    if(mode == CHECK_ARRAY){
+      if(match(TokenType.LBRACK)){
+        advance();
+        eat(TokenType.RBRACK, "expected RBRACK in dtype");
+        return true;
+      }
+    }
+    return false;
   }
 
   private void stmts(List<Stmt> stmts) throws MyPLException{
@@ -273,6 +285,7 @@ public class ASTParser {
 
   private void vdecl_stmt(VarDeclStmt varDeclStmt) throws MyPLException{
     varDeclStmt.isArray = match(TokenType.ARR);
+    currIsArr = varDeclStmt.isArray;
     List<Expr> exprs = new ArrayList<>();
     if(match(TokenType.VAR) || varDeclStmt.isArray){
       advance();
@@ -285,7 +298,7 @@ public class ASTParser {
 
     if(isPrimitiveType() || match(TokenType.ID)){
       explicitDecToken = currToken;
-      dtype();
+      dtype(NO_ARRAY_CHECK);
       if(match(TokenType.ID)){
         varDeclStmt.typeName = explicitDecToken;
         varDeclStmt.varName = currToken;
@@ -325,39 +338,41 @@ public class ASTParser {
 
   private void lvalue(List<PathHolder> lvalue) throws MyPLException{
     PathHolder currentMap = null;
-    Token prev = null;
     if(match(TokenType.ID) && pastToken == null){
-      currentMap = new PathHolder(currToken, currToken.type());
+      currentMap = new PathHolder(currToken);
       lvalue.add(currentMap);
-      prev = currToken;
       advance();
     }
     else if(pastToken.type() == TokenType.ID){
-      currentMap = new PathHolder(pastToken, pastToken.type());
+      currentMap = new PathHolder(pastToken);
       lvalue.add(currentMap);
       pastToken = null;
-      prev = pastToken;
     }
     else{
       error("expecting ID in lvalue");
     }
-    //eat(TokenType.ID, "expecting ID in lvalue");
+
+    boolean switched = false;
     while(match(TokenType.DOT) || match(TokenType.LBRACK)){
       if(match(TokenType.LBRACK)){
-        lvalue.get(lvalue.size()-1).replace(prev, TokenType.ARR);
+        if(switched){
+          error("double accessor in lvalue");
+        }
+        lvalue.get(lvalue.size()-1).replace(lvalue.get(lvalue.size()-1).first, true);
         advance();
         Expr expr = new Expr();
         expr(expr);
-        currentMap = new PathHolder(expr, TokenType.INT_VAL);
+        currentMap = new PathHolder(expr);
         lvalue.add(currentMap);
         eat(TokenType.RBRACK, "expected RBrack in assign stmt for arr");
+        switched = true;
       }
       else {
         advance();
-        currentMap = new PathHolder(currToken, currToken.type());
+        currentMap = new PathHolder(currToken);
         lvalue.add(currentMap);
-        prev = currToken;
         eat(TokenType.ID, "expecting ID in lvalue");
+        switched = false;
       }
     }
   } //FIN
@@ -618,39 +633,40 @@ public class ASTParser {
 
   private void idrval(IDRValue idrValue) throws MyPLException{
     PathHolder currentMap = null;
-    Token prev = null;
     if(match(TokenType.ID) && pastToken == null){
-      currentMap = new PathHolder(currToken, currToken.type());
+      currentMap = new PathHolder(currToken);
       idrValue.path.add(currentMap);
-      prev = currToken;
       advance();
     }
     else if(pastToken.type() == TokenType.ID){
-      currentMap = new PathHolder(pastToken, pastToken.type());
+      currentMap = new PathHolder(pastToken);
       idrValue.path.add(currentMap);
       pastToken = null;
-      prev = pastToken;
     }
     else{
       error("expecting ID in lvalue");
     }
-    //eat(TokenType.ID, "expecting ID in lvalue");
+    boolean switched = false;
     while(match(TokenType.DOT) || match(TokenType.LBRACK)){
       if(match(TokenType.LBRACK)){
-        idrValue.path.get(idrValue.path.size()-1).replace(prev, TokenType.ARR);
+        if(switched){
+          error("Double accessor in idrval");
+        }
+        idrValue.path.get(idrValue.path.size()-1).replace(idrValue.path.get(idrValue.path.size()-1).first, true);
         advance();
         Expr expr = new Expr();
         expr(expr);
-        currentMap = new PathHolder(expr, TokenType.INT_VAL);
+        currentMap = new PathHolder(expr);
         idrValue.path.add(currentMap);
         eat(TokenType.RBRACK, "expected RBrack in assign stmt for arr");
+        switched = true;
       }
       else {
         advance();
-        currentMap = new PathHolder(currToken, currToken.type());
+        currentMap = new PathHolder(currToken);
         idrValue.path.add(currentMap);
-        prev = currToken;
         eat(TokenType.ID, "expecting ID in lvalue");
+        switched = false;
       }
     }
   } //FIN

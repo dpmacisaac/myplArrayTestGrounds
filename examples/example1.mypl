@@ -1,0 +1,9 @@
+fun void main(){
+    arr int x = {}
+    test(x)
+    print(itos(x[0]))
+}
+
+fun void test(int[] x){
+    add(x, 1)
+}

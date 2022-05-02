@@ -203,6 +203,30 @@ public class VMInstr {
     return new VMInstr(OpCode.GETFLD, field);
   }
 
+  public static VMInstr CREATE() {
+    return new VMInstr(OpCode.CREATE);
+  }
+
+  public static VMInstr ADDVAL() {
+    return new VMInstr(OpCode.ADDVAL);
+  }
+
+  public static VMInstr RMVAL() {
+    return new VMInstr(OpCode.RMVAL);
+  }
+
+  public static VMInstr GETVAL() {
+    return new VMInstr(OpCode.GETVAL);
+  }
+
+  public static VMInstr SETVAL() {
+    return new VMInstr(OpCode.SETVAL);
+  }
+
+  public static VMInstr SIZE() {
+    return new VMInstr(OpCode.SIZE);
+  }
+
   public static VMInstr DUP() {
     return new VMInstr(OpCode.DUP);
   }
