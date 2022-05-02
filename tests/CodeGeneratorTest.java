@@ -1005,5 +1005,35 @@ public class CodeGeneratorTest {
     assertEquals("4", output.toString());
   }
 
+  @Test
+  public void arrPath3() throws Exception {
+    String s = buildString
+            ("type Node { arr x = {1,2,3}}",
+                    "fun void main() {",
+                    "var x = new Node",
+                    "var z = x.x[2]",
+                    "print(itos(z))",
+                    "}"
+            );
+    VM vm = buildVM(s);
+    vm.run();
+    assertEquals("3", output.toString());
+  }
+
+  @Test
+  public void arrOfUDT() throws Exception {
+    String s = buildString
+            ("type Node { arr x = {1,2,3}}",
+                    "fun void main() {",
+                    "var x = new Node",
+                    "arr nodeList = {x}",
+                    "print(itos(nodeList[0].x[2]))",
+                    "}"
+            );
+    VM vm = buildVM(s);
+    vm.run();
+    assertEquals("3", output.toString());
+  }
+
 
 }

@@ -320,90 +320,79 @@ public class StaticChecker implements Visitor {
   }
 
   public void visit(AssignStmt node) throws MyPLException {
-    Token currentToken = (Token) node.lvalue.get(0).first;
-    int pathSize = node.lvalue.size();
-    //if no path - simple id
-    if(pathSize <= 1){
-      if(symbolTable.nameExists(currentToken.lexeme())) {
-        currType = symbolTable.get(currentToken.lexeme()).type;
-        if(symbolTable.get(currentToken.lexeme()).isArray){
-          error("cant have arr is assignStmt", currentToken);
-        }
-      }
-      else{
-        error("idrvalue error", currentToken);
-      }
-    }
-    //path
-    else{
-      String pathName = currentToken.lexeme();
-      String udtType = "";
-      String arrType ="";
-      boolean arrayCheck = false;
-      Expr currentExpr = null;
-      //start of path
-      if(!symbolTable.nameExists(pathName)){
-        error("path not in symbolTable in idrvalue", currentToken);
-      }
-      arrayCheck = node.lvalue.get(0).isArray;
-      if(arrayCheck){ //if its an array then get the type of the array
-        arrType = symbolTable.get(pathName).type;
-      }
-      else{ //if its a type then get the udt name
-        udtType = symbolTable.get(pathName).type;
-      }
-      //loop
-      for(int i = 1; i < pathSize-1; i++){
-        if(arrayCheck){
-          currentExpr = (Expr) node.lvalue.get(i).first;
-          currentExpr.accept(this);
-          if(!currType.equals("int")){
-            error("incorrect type in array in idrvalue", currentToken);
+      Token currentToken = (Token) node.lvalue.get(0).first;
+      int pathSize = node.lvalue.size();
+      //if no path - simple id
+      if(pathSize == 1){
+          if(symbolTable.nameExists(currentToken.lexeme())) {
+              currType = symbolTable.get(currentToken.lexeme()).type;
+              currIsArr = symbolTable.get(currentToken.lexeme()).isArray;
           }
-          currType = arrType;
-        }
-        else{
-          currentToken = (Token) node.lvalue.get(i).first;
-          pathName = currentToken.lexeme();
-          if(!typeInfo.components(udtType).contains(pathName)){
-            error("path not in typeInfo", currentToken);
+          else{
+              error("idrvalue error", currentToken);
           }
-          currType = typeInfo.get(udtType, pathName).type;
-        }
-        arrayCheck = node.lvalue.get(i).isArray;
-        if(!arrayCheck){
-          udtType = currType;
-        }
-        else{
-          currentToken = (Token) node.lvalue.get(i).first;
-          arrType = symbolTable.get(currentToken.lexeme()).type;
-        }
       }
-      if(arrayCheck){
-        currentExpr = (Expr) node.lvalue.get(pathSize-1).first;
-        currentExpr.accept(this);
-        if(!currType.equals("int")){
-          error("incorrect type in array in idrvalue", currentToken);
-        }
-        currType = arrType;
-      }
-      else{
-        currentToken = (Token) node.lvalue.get(pathSize-1).first;
-        pathName = currentToken.lexeme();
-        if(!typeInfo.components(udtType).contains(pathName)){
-          error("path not in typeInfo", currentToken);
-        }
-        currType = typeInfo.get(udtType,pathName).type;
-      }
+      else {
+        //path
+        String currPathName = currentToken.lexeme();
+        String currPathType = symbolTable.get(currPathName).type;
+        String oldPathType = "";
+        boolean checkingArray = node.lvalue.get(0).isArray;
+        boolean typeCheck = false;
+        Expr currExpr = null;
 
-    }
-    String lhs = currType;
-    String rhs = "";
-    node.expr.accept(this);
-    rhs = currType;
-    if(!lhs.equals(rhs) && !rhs.equals("void")){
-      error("assignment error", getFirstToken(node.expr));
-    }
+        if (checkingArray) {
+          if (!symbolTable.get(currPathName).isArray) {
+            error("not an array in idrval", currentToken);
+          }
+        }
+        else {
+          if (!typeInfo.types().contains(currPathType)) {
+            error("type doesn't exist", currentToken);
+          }
+        }
+
+        for (int i = 1; i < pathSize; i++) {
+          if (checkingArray) {
+            currExpr = (Expr) node.lvalue.get(i).first;
+            currExpr.accept(this);
+            if (!currType.equals("int") || currIsArr) {
+              error("expecting int in array access in idrval", currentToken);
+            }
+            currType = currPathType;
+            checkingArray = node.lvalue.get(i).isArray;
+
+            if (typeCheck) {
+              if (!typeInfo.get(oldPathType, currPathName).isArray) {
+                error("type incorrect", currentToken);
+              }
+            }
+            currIsArr = false;
+          }
+          else {
+            oldPathType = currPathType;
+            currentToken = (Token) node.lvalue.get(i).first;
+            currPathName = currentToken.lexeme();
+            if (!typeInfo.components(currPathType).contains(currPathName)) {
+              error("path doesnt exist in udt in idrval", currentToken);
+            }
+            currType = typeInfo.get(currPathType, currPathName).type;
+            currIsArr = typeInfo.get(currPathType, currPathName).isArray;
+            currPathType = currType;
+            checkingArray = node.lvalue.get(i).isArray;
+            typeCheck = true;
+          }
+        }
+      }
+      String lhs = currType;
+      boolean lhsarray = currIsArr;
+      String rhs = "";
+      node.expr.accept(this);
+      rhs = currType;
+      boolean rhsarray = currIsArr;
+      if((!lhs.equals(rhs) && !rhs.equals("void")) || (lhsarray != rhsarray)){
+        error("assignment error", getFirstToken(node.expr));
+      }
   }
 
   public void visit(CondStmt node) throws MyPLException {

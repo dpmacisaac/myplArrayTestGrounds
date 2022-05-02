@@ -1,6 +1,6 @@
 type Node { arr x = {1,2,3}}
                     fun void main() {
                     var x = new Node
-                    x.x[0] = 4
-                    print(itos(x.x[0]))
+                    arr nodeList = {x}
+                    print(itos(nodeList[0].x[2]))
                     }
