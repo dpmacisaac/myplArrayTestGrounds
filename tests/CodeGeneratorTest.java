@@ -961,4 +961,49 @@ public class CodeGeneratorTest {
     assertEquals("2", output.toString());
   }
 
+  @Test
+  public void funArgArr() throws Exception {
+    String s = buildString
+            ("fun void main() {",
+                    "arr int x = {1}",
+                    "test(x)",
+                    "print(itos(x[1]))",
+                    "}",
+                    "fun void test(int[] x){ add(x, 2) }"
+                    );
+    VM vm = buildVM(s);
+    vm.run();
+    assertEquals("2", output.toString());
+  }
+
+  @Test
+  public void arrPath() throws Exception {
+    String s = buildString
+            ("type Node { arr x = {1,2,3}}",
+                    "fun void main() {",
+                    "var x = new Node",
+                    "print(itos(size(x.x)))",
+                    "}"
+            );
+    VM vm = buildVM(s);
+    vm.run();
+    assertEquals("3", output.toString());
+  }
+
+  @Test
+  public void arrPath2() throws Exception {
+    String s = buildString
+            ("type Node { arr x = {1,2,3}}",
+                    "fun void main() {",
+                    "var x = new Node",
+                    "x.x[0] = 4",
+                    "print(itos(x.x[0]))",
+                    "}"
+            );
+    VM vm = buildVM(s);
+    vm.run();
+    assertEquals("4", output.toString());
+  }
+
+
 }

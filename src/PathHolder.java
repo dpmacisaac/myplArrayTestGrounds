@@ -1,14 +1,17 @@
 public class PathHolder {
     public Object first = null;
-    public TokenType second = null;
+    public boolean isArray = false;
 
-    public PathHolder(Object first, TokenType second){
+    public PathHolder (Object first){
         this.first = first;
-        this.second = second;
+    }
+    public PathHolder(Object first, boolean isArray){
+        this.first = first;
+        this.isArray = isArray;
     }
 
-    public void replace(Object first, TokenType second){
+    public void replace(Object first, boolean isArray){
         this.first = first;
-        this.second = second;
+        this.isArray = isArray;
     }
 }

@@ -7,7 +7,7 @@
  *  Bazel commands: bazel build //:mypl  || bazel test --test_output=errors //... || bazel test --test_output=errors //:lexer-test
  * bazel-bin/mypl examples/
  */
-/*
+
 import java.io.InputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -140,4 +140,4 @@ public class MyPL {
     System.out.println("  --ir       Print intermediate code.");
   }
   
-}*/
+}

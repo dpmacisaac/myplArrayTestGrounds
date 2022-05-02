@@ -16,6 +16,7 @@ public class SymbolTable {
 
   // the table is a list of environments, where an environment is a
   // mapping (bindings) from strings to objects
+  //      varName ->
   List<Map<String,TypeHolder>> environments = new ArrayList<>();
 
 

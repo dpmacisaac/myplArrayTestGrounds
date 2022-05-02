@@ -15,7 +15,8 @@ import java.util.Set;
 public class TypeInfo {
 
   // a type has a name and a set of component name-type pairs
-  private Map<String,Map<String,String>> types = new HashMap<>();
+  //          typeName -> (varName -> TypeHolder)
+  private Map<String,Map<String,TypeHolder>> types = new HashMap<>();
 
   //Returns the current set of type names being stored.
   public Set<String> types() {
@@ -48,7 +49,7 @@ public class TypeInfo {
    * @param componentName the name of the component to add
    * @param componentType the type of the component to add
    */
-  public void add(String type, String componentName, String componentType) {
+  public void add(String type, String componentName, TypeHolder componentType) {
     types.get(type).put(componentName, componentType);
   }
 
@@ -58,7 +59,7 @@ public class TypeInfo {
    * @param componentName the name of the type component
    * @return the type of the given component
    */
-  public String get(String type, String componentName) {
+  public TypeHolder get(String type, String componentName) {
     if (types.containsKey(type))
       return types.get(type).get(componentName);
     return null;

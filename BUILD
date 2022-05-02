@@ -23,6 +23,20 @@ java_library(
 #----------------------------------------------------------------------
 
 java_test(
+    name = "token-test",
+    srcs = ["tests/TokenTest.java"],
+    test_class = "TokenTest",
+    deps = ["lib/junit-4.13.2.jar", "lib/hamcrest-core-1.3.jar", ":mypl-lib"],
+)
+
+java_test(
+    name = "lexer-test",
+    srcs = ["tests/LexerTest.java"],
+    test_class = "LexerTest",
+    deps = ["lib/junit-4.13.2.jar", "lib/hamcrest-core-1.3.jar","//:mypl-lib"],
+)
+
+java_test(
     name = "parser-test",
     srcs = ["tests/ParserTest.java"],
     test_class = "ParserTest",

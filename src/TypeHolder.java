@@ -1,12 +1,13 @@
 public class TypeHolder {
-    public Token type = null;
+    public String type = null;
     public boolean isArray = false;
     public TypeHolder(){}
-    public TypeHolder(Token type){
+    public TypeHolder(String type){
         this.type = type;
+        this.isArray = false;
     }
 
-    public TypeHolder(Token type, boolean isArray){
+    public TypeHolder(String type, boolean isArray){
         this.type = type;
         this.isArray = isArray;
     }

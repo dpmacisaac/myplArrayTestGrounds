@@ -339,12 +339,12 @@ public class ASTParser {
   private void lvalue(List<PathHolder> lvalue) throws MyPLException{
     PathHolder currentMap = null;
     if(match(TokenType.ID) && pastToken == null){
-      currentMap = new PathHolder(currToken, currToken.type());
+      currentMap = new PathHolder(currToken);
       lvalue.add(currentMap);
       advance();
     }
     else if(pastToken.type() == TokenType.ID){
-      currentMap = new PathHolder(pastToken, pastToken.type());
+      currentMap = new PathHolder(pastToken);
       lvalue.add(currentMap);
       pastToken = null;
     }
@@ -358,18 +358,18 @@ public class ASTParser {
         if(switched){
           error("double accessor in lvalue");
         }
-        lvalue.get(lvalue.size()-1).replace(lvalue.get(lvalue.size()-1).first, TokenType.ARR);
+        lvalue.get(lvalue.size()-1).replace(lvalue.get(lvalue.size()-1).first, true);
         advance();
         Expr expr = new Expr();
         expr(expr);
-        currentMap = new PathHolder(expr, TokenType.INT_VAL);
+        currentMap = new PathHolder(expr);
         lvalue.add(currentMap);
         eat(TokenType.RBRACK, "expected RBrack in assign stmt for arr");
         switched = true;
       }
       else {
         advance();
-        currentMap = new PathHolder(currToken, currToken.type());
+        currentMap = new PathHolder(currToken);
         lvalue.add(currentMap);
         eat(TokenType.ID, "expecting ID in lvalue");
         switched = false;
@@ -634,12 +634,12 @@ public class ASTParser {
   private void idrval(IDRValue idrValue) throws MyPLException{
     PathHolder currentMap = null;
     if(match(TokenType.ID) && pastToken == null){
-      currentMap = new PathHolder(currToken, currToken.type());
+      currentMap = new PathHolder(currToken);
       idrValue.path.add(currentMap);
       advance();
     }
     else if(pastToken.type() == TokenType.ID){
-      currentMap = new PathHolder(pastToken, pastToken.type());
+      currentMap = new PathHolder(pastToken);
       idrValue.path.add(currentMap);
       pastToken = null;
     }
@@ -652,18 +652,18 @@ public class ASTParser {
         if(switched){
           error("Double accessor in idrval");
         }
-        idrValue.path.get(idrValue.path.size()-1).replace(idrValue.path.get(idrValue.path.size()-1).first, TokenType.ARR);
+        idrValue.path.get(idrValue.path.size()-1).replace(idrValue.path.get(idrValue.path.size()-1).first, true);
         advance();
         Expr expr = new Expr();
         expr(expr);
-        currentMap = new PathHolder(expr, TokenType.INT_VAL);
+        currentMap = new PathHolder(expr);
         idrValue.path.add(currentMap);
         eat(TokenType.RBRACK, "expected RBrack in assign stmt for arr");
         switched = true;
       }
       else {
         advance();
-        currentMap = new PathHolder(currToken, currToken.type());
+        currentMap = new PathHolder(currToken);
         idrValue.path.add(currentMap);
         eat(TokenType.ID, "expecting ID in lvalue");
         switched = false;

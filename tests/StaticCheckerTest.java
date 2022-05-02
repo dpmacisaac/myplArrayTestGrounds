@@ -1393,11 +1393,11 @@ public class StaticCheckerTest {
     assertEquals(3, typeInfo.components("T2").size());
     List<String> components = new ArrayList(typeInfo.components("T2"));
     assertEquals("x", components.get(0));
-    assertEquals("int", typeInfo.get("T2", "x"));
+    assertEquals("int", typeInfo.get("T2", "x").type);
     assertEquals("y", components.get(1));    
-    assertEquals("string", typeInfo.get("T2", "y"));    
+    assertEquals("string", typeInfo.get("T2", "y").type);
     assertEquals("z", components.get(2));
-    assertEquals("T2", typeInfo.get("T2", "z"));    
+    assertEquals("T2", typeInfo.get("T2", "z").type);
   }
 
   @Test
@@ -1412,17 +1412,21 @@ public class StaticCheckerTest {
     assertTrue(typeInfo.types().contains("main"));
     assertTrue(typeInfo.types().contains("f"));
     assertEquals(1, typeInfo.components("main").size());
-    assertEquals("void", typeInfo.get("main", "return"));
+    assertEquals("void", typeInfo.get("main", "return").type);
     assertEquals(3, typeInfo.components("f").size());
     List<String> components = new ArrayList(typeInfo.components("f"));
     assertEquals("x", components.get(0));
-    assertEquals("int", typeInfo.get("f", "x"));
+    assertEquals("int", typeInfo.get("f", "x").type);
     assertEquals("y", components.get(1));
-    assertEquals("string", typeInfo.get("f", "y"));    
+    assertEquals("string", typeInfo.get("f", "y").type);
     assertEquals("return", components.get(2));
-    assertEquals("int", typeInfo.get("f", "return"));    
+    assertEquals("int", typeInfo.get("f", "return").type);
 
   }
+
+  //------------------------------------------------------------
+  // ARRAY TESTS
+  //------------------------------------------------------------
 
 
   @Test
@@ -1509,6 +1513,55 @@ public class StaticCheckerTest {
     }
   }
 
+  @Test
+  public void invalidPathIDRVal() throws Exception {
+    String s = buildString
+            ("type Node{ arr x = {'a'}}",
+                    "fun void main() {",
+                    "  arr x = {1,2}",
+                    "var w = new Node",
+                    " x[0] = w.x[0]",
+                    "}"
+            );
+    try {
+      buildParser(s).parse().accept(buildChecker());
+      fail("error not detected");
+    } catch(MyPLException ex) {
+      assertTrue(ex.getMessage().startsWith("STATIC_ERROR:"));
+    }
+  }
+
+  @Test
+  public void funArgFail() throws Exception {
+    String s = buildString
+            ("type Node{ arr x = {'a'}}",
+                    "fun void main() {",
+                    "  arr x = {1,2}",
+                    "var w = new Node",
+                    " test(w.x)",
+                    "}",
+                    "fun void test(int[] z){}"
+            );
+    try {
+      buildParser(s).parse().accept(buildChecker());
+      fail("error not detected");
+    } catch(MyPLException ex) {
+      assertTrue(ex.getMessage().startsWith("STATIC_ERROR:"));
+    }
+  }
+
+  @Test
+  public void funArgPass() throws Exception {
+    String s = buildString
+            ("type Node{ arr x = {'a'}}",
+                    "fun void main() {",
+                    "  arr x = {1,2}",
+                    "var w = new Node",
+                    " test(w.x)",
+                    "}",
+                    "fun void test(char[] z){}"
+            );
+  }
 
 
 }

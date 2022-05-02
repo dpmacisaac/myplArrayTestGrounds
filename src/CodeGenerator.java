@@ -145,7 +145,7 @@ public class CodeGenerator implements Visitor {
     else{
       currFrame.instructions.add(VMInstr.LOAD(varMap.get(currToken.lexeme())));
       for(int i = 1; i < node.lvalue.size()-1; i++){
-        if(node.lvalue.get(i-1).second.equals(TokenType.ARR)){
+        if(node.lvalue.get(i-1).isArray){
           Expr currExpr = (Expr) node.lvalue.get(i).first;
           currExpr.accept(this);
           currFrame.instructions.add(VMInstr.GETVAL());
@@ -156,7 +156,7 @@ public class CodeGenerator implements Visitor {
         }
       }
 
-      if(node.lvalue.get(node.lvalue.size()-2).second.equals(TokenType.ARR)){
+      if(node.lvalue.get(node.lvalue.size()-2).isArray){
         Expr currExpr = (Expr) node.lvalue.get(node.lvalue.size()-1).first;
         currExpr.accept(this);
         currFrame.instructions.add(VMInstr.SETVAL());
@@ -403,7 +403,7 @@ public class CodeGenerator implements Visitor {
     if (node.path.size() > 1) {
 
       for(int i = 1; i<node.path.size(); i++){
-        if(node.path.get(i-1).second.equals(TokenType.ARR)) {
+        if(node.path.get(i-1).isArray) {
           Expr currExpr = (Expr) node.path.get(i).first;
           currExpr.accept(this);
           currFrame.instructions.add(VMInstr.GETVAL());
