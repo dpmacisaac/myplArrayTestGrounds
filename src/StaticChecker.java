@@ -209,7 +209,7 @@ public class StaticChecker implements Visitor {
     for(VarDeclStmt varDeclStmt: node.vdecls){
       varDeclStmt.accept(this);
       String nameOfVar = varDeclStmt.varName.lexeme();
-      typeInfo.add(typeName,nameOfVar, new TypeHolder(currType, currIsArr));
+      typeInfo.add(typeName, nameOfVar, new TypeHolder(currType, currIsArr));
     }
     symbolTable.popEnvironment();
   }
@@ -275,12 +275,13 @@ public class StaticChecker implements Visitor {
         if(node.typeName == null){
           error("implicit var declaration cannot be assigned nil", node.varName);
         }
-
         symbolTable.add(node.varName.lexeme(), new TypeHolder(node.typeName.lexeme(), true));
+        currType = node.typeName.lexeme();
       }
       else{
         String typeOfArr = null;
-        if(node.typeName!= null){
+        if(node.typeName != null){
+          //System.out.println("var dec " + node.typeName);
           typeOfArr = node.typeName.lexeme();
         }
         for (Expr expr: node.exprs) {
@@ -698,11 +699,13 @@ public class StaticChecker implements Visitor {
         error("incorrect amount of argument in call function", getFirstToken(node));
       }
       for(int i = 0; i < argSize; i++){
+        //System.out.println("current = " + currType);
         node.args.get(i).accept(this);
         paramName = typeInfo.components(nameOfFunct).toArray()[i].toString();
         paramType = typeInfo.get(nameOfFunct, paramName).type;
         paramIsArr = typeInfo.get(nameOfFunct, paramName).isArray;
         //System.out.println(node.funName.lexeme() + "  " + paramName + " " +paramType + " current: " + currType);
+
         if(!currType.equals(paramType) && !currType.equals("void") || paramIsArr != currIsArr){
           error("incorrect argument in function " + node.funName.lexeme(), node.funName);
         }
@@ -805,93 +808,15 @@ public class StaticChecker implements Visitor {
         if(!typeInfo.components(currPathType).contains(currPathName)){
           error("path doesnt exist in udt in idrval", currentToken);
         }
-        currType = typeInfo.get(currPathType, currPathName).type;
+        //System.out.println("typeInfo " + currPathType + "  " + currPathName + " " + typeInfo.get(currPathType, currPathName).type);
+        //System.out.println(typeInfo.components(currPathType).toArray()[0]);
+        currType = typeInfo.get(oldPathType, currPathName).type;
         currIsArr = typeInfo.get(currPathType, currPathName).isArray;
         currPathType = currType;
         checkingArray = node.path.get(i).isArray;
         typeCheck = true;
       }
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      /*
-      String currName = currentToken.lexeme();
-      String currPathType = "";
-      boolean arrayCheck = false;
-      Expr currentExpr = null;
-      //start of path
-      if(!symbolTable.nameExists(currName)){
-        error("path not in symbolTable in idrvalue", currentToken);
-      }
-      arrayCheck = node.path.get(0).second.equals(TokenType.ARR);
-      currPathType = symbolTable.get(currName).type;
-      if(arrayCheck){ //if its an array then get the type of the array
-        if(!symbolTable.get(currName).isArray){
-          error("not a arr in idrval", currentToken);
-        }
-      }
-      //loop
-      for(int i = 1; i < pathSize-1; i++){
-        if(arrayCheck){
-          currentExpr = (Expr) node.path.get(i).first;
-          currentExpr.accept(this);
-          if(!currType.equals("int")){
-            error("incorrect type in array in idrvalue", currentToken);
-          }
-          currType = currPathType;
-        }
-        else{
-          currentToken = (Token) node.path.get(i).first;
-          currName = currentToken.lexeme();
-          if(!typeInfo.components(currPathType).contains(currName)){
-            error("path not in typeInfo", currentToken);
-          }
-          currType = typeInfo.get(currPathType, currName).type;
-          currIsArr = typeInfo.get(currPathType, currName).isArray;
-        }
-
-        arrayCheck = node.path.get(i).second.equals(TokenType.ARR);
-        if(!arrayCheck){
-          currPathType = currType;
-        }
-        else{
-          currentToken = (Token) node.path.get(i).first;
-        }
-      }
-
-      if(arrayCheck){
-        currentExpr = (Expr) node.path.get(pathSize-1).first;
-        currentExpr.accept(this);
-        if(!currType.equals("int")){
-          error("incorrect type in array in idrvalue", currentToken);
-        }
-        currType = currPathType;
-        currIsArr = false;
-      }
-      else{
-        currentToken = (Token) node.path.get(pathSize-1).first;
-        currName = currentToken.lexeme();
-        if(!typeInfo.components(currPathType).contains(currName)){
-          error("path not in typeInfo", currentToken);
-        }
-        currType = typeInfo.get(currPathType,currName).type;
-        currIsArr = typeInfo.get(currPathType,currName).isArray;
-      }
-      */
   }
   
       

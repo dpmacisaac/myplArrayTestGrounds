@@ -64,5 +64,5 @@ public class TypeInfo {
       return types.get(type).get(componentName);
     return null;
   }
-      
+
 }
