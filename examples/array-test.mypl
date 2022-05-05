@@ -1,6 +1,30 @@
-type Node { arr x = {1,2,3}}
-                    fun void main() {
-                    var x = new Node
-                    arr nodeList = {x}
-                    print(itos(nodeList[0].x[2]))
-                    }
+type Node{
+    arr int x = {}
+}
+
+type Upper {
+    var Node first = new Node
+    var Node second = new Node
+}
+
+fun void main(){
+    var upp = new Upper
+    populate(upp.first.x, 1)
+    populate(upp.second.x, 5)
+
+    print("expecting 0 1 2 3 4 : ")
+    for i from 0 upto 4{
+        print(itos(upp.first.x[i]) + " ")
+    }
+    print("\n")
+    print("expecting 0 5 10 15 20 : ")
+    for i from 0 upto 4{
+        print(itos(upp.second.x[i]) + " ")
+    }
+}
+
+fun void populate(int[] x, int z){
+    for i from 0 upto 4 {
+        add(x, z * i)
+    }
+}

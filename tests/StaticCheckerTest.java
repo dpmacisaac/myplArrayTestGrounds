@@ -1561,7 +1561,62 @@ public class StaticCheckerTest {
                     "}",
                     "fun void test(char[] z){}"
             );
+    buildParser(s).parse().accept(buildChecker());
   }
 
+  @Test
+  public void invalidArrtoNotArr() throws Exception {
+    String s = buildString
+            ("type Node{ arr x = {'a'}}",
+                    "fun void main() {",
+                    " var char x = 'a'",
+                    "var w = new Node",
+                    "x = w.x",
+                    "}"
+            );
+    try {
+      buildParser(s).parse().accept(buildChecker());
+      fail("error not detected");
+    } catch(MyPLException ex) {
+      assertTrue(ex.getMessage().startsWith("STATIC_ERROR:"));
+    }
+  }
+
+  @Test
+  public void invalidArrtoNotArr2() throws Exception {
+    String s = buildString
+            ("type Node{ arr x = {'a'}}",
+                    "fun void main() {",
+                    " var char x = 'a'",
+                    "var w = new Node",
+                    "w.x = x",
+                    "}"
+            );
+    try {
+      buildParser(s).parse().accept(buildChecker());
+      fail("error not detected");
+    } catch(MyPLException ex) {
+      assertTrue(ex.getMessage().startsWith("STATIC_ERROR:"));
+    }
+  }
+
+  @Test
+  public void funArgPassFail() throws Exception {
+    String s = buildString
+            ("type Node{ arr x = {'a'}}",
+                    "fun void main() {",
+                    "  arr x = {1,2}",
+                    "var w = new Node",
+                    " test('a')",
+                    "}",
+                    "fun void test(char[] z){}"
+            );
+    try {
+      buildParser(s).parse().accept(buildChecker());
+      fail("error not detected");
+    } catch(MyPLException ex) {
+      assertTrue(ex.getMessage().startsWith("STATIC_ERROR:"));
+    }
+  }
 
 }

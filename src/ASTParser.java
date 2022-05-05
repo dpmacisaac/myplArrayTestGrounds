@@ -294,20 +294,20 @@ public class ASTParser {
       error("incorrect start of variable declarations statement");
     }
 
-    Token explicitDecToken = null;
+    Token holderToken = null;
 
     if(isPrimitiveType() || match(TokenType.ID)){
-      explicitDecToken = currToken;
+      holderToken = currToken;
       dtype(NO_ARRAY_CHECK);
       if(match(TokenType.ID)){
-        varDeclStmt.typeName = explicitDecToken;
+        varDeclStmt.typeName = holderToken;
         varDeclStmt.varName = currToken;
+        //System.out.println("currtype = " +varDeclStmt.typeName.lexeme() + " currvarname = " + varDeclStmt.varName.lexeme() + " is array = " + varDeclStmt.isArray );
         advance();
       }
       else{
-        varDeclStmt.varName = explicitDecToken;
+        varDeclStmt.varName = holderToken;
       }
-      explicitDecToken = null;
     }
 
     eat(TokenType.ASSIGN, "expecting ASSIGN in vdecl_stmt");

@@ -1,0 +1,85 @@
+type Node{
+    var int k = nil
+    var string v = nil
+}
+
+fun void main(){
+    arr Node nodes = {}
+    arr int map = {}
+    var running = true
+    var string response = nil
+    while(running){
+        print("----------------------------------------------------------------------\n")
+        print("Press \nA to add a new key-value pair\nV to view a value from a key\nD to destroy a key-value pair\nP to print all\n")
+        response = read()
+        if(response == "A"){
+            print("Enter key(int): ")
+            var key = stoi(read())
+            print("Enter value(string): ")
+            var val = read()
+            var newNode = new Node
+            newNode.k = key
+            newNode.v = val
+            if(contains(map, key)){
+                print("Can't add same value twice\n")
+            }
+            else{
+                add(map, key)
+                add(nodes, newNode)
+            }
+        }
+        elif (response == "V"){
+            print("Enter key to view val: ")
+            var key = stoi(read())
+            var index = findIndex(map, key)
+            if(index == neg 1){
+                print("ERROR: item not found")
+            }
+            else{
+                print(nodes[index].v)
+                print("\n")
+            }
+        }
+        elif (response == "D"){
+            print("Enter key to delete node: ")
+            var key = stoi(read())
+            var index = findIndex(map, key)
+            if(index == neg 1){
+                print("ERROR: item not found")
+            }
+            else{
+                remove(nodes, index)
+                remove(map, index)
+                print("Item removed successfully\n")
+            }
+        }
+        elif(response == "P"){
+            print("index | key | value\n")
+            for i from 0 upto (size(nodes)-1){
+                print(itos(i) + "     | " + itos(nodes[i].k) + "   | " + nodes[i].v + "\n")
+            }
+        }
+        else{
+            print("invalid input, try again")
+        }
+    }
+}
+
+
+fun bool contains(int[] x, int y){
+    for i from 0 upto (size(x)-1){
+        if(y == x[i]){
+            return true
+        }
+    }
+    return false
+}
+
+fun int findIndex(int[] x, int y){
+    for i from 0 upto (size(x)-1){
+        if(y == x[i]){
+            return i
+        }
+    }
+    return neg 1
+}
